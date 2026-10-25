@@ -46,3 +46,10 @@ make the --web default
 remove the CLI usage:
     python homebench.py --model qwen=http://localhost:8080 --model llama=http://localhost:8081
 the python homebench.py --report can be an export button in the web
+
+i recently refactored my application and now i get Run 1: FAIL
+FAIL: expected string or bytes-like object, got 'NoneType'
+[ERROR] expected string or bytes-like object, got 'NoneType'
+
+Exception occurred during processing of request from ('127.0.0.1', 4528)
+this error happens when i try to export the results

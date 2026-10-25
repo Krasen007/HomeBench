@@ -59,6 +59,7 @@ def chat(base_url, prompt, temperature, max_tokens, timeout):
     # Drop reasoning blocks from "thinking" models (e.g. Qwen3, DeepSeek-R1)
     text = re.sub(r"\]*?>.*?\n", "", text, flags=re.S)
     text = re.sub(r"\]*?>.*$", "", text, flags=re.S)
+    return text
 
 
 # --------------------------------------------------------------------------
@@ -165,7 +166,12 @@ class Handler(BaseHTTPRequestHandler):
     #     pass
 
     def send(self, payload, code=200, ctype="application/json"):
-        data = payload.encode() if isinstance(payload, str) else json.dumps(payload).encode()
+        if isinstance(payload, str):
+            data = payload.encode()
+        elif isinstance(payload, bytes):
+            data = payload
+        else:
+            data = json.dumps(payload).encode()
         self.send_response(code)
         self.send_header("Content-Type", ctype + "; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
