@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mini LLM Bench</title>
+  <style>
+    :root {
+      --bg: #fafaf9;
+      --fg: #1c1917;
+      --muted: #78716c;
+      --card: #fff;
+      --border: #e7e5e4;
+      --accent: #2563eb;
+      --pass: #16a34a;
+      --fail: #dc2626;
+      --part: #d97706;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #161514;
+        --fg: #f5f5f4;
+        --muted: #a8a29e;
+        --card: #1f1e1c;
+        --border: #34312e;
+        --accent: #60a5fa;
+        --pass: #4ade80;
+        --fail: #f87171;
+        --part: #fbbf24;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font: 15px/1.5 system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      margin: 0;
+      padding: 24px;
+    }
+
+    main {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 22px;
+      margin: 0 0 4px;
+    }
+
+    h2 {
+      font-size: 16px;
+      margin: 0 0 12px;
+    }
+
+    .sub {
+      color: var(--muted);
+      margin: 0 0 20px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg);
+      color: var(--fg);
+      font: inherit;
+    }
+
+    .wide {
+      grid-column: span 2;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--fg);
+      font: inherit;
+      cursor: pointer;
+    }
+
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    progress {
+      flex: 1;
+      min-width: 120px;
+      height: 8px;
+    }
+
+    #status {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    pre {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 13px;
+      margin: 6px 0;
+    }
+
+    #log {
+      max-height: 110px;
+      overflow-y: auto;
+      margin-top: 10px;
+    }
+
+    .scroll {
+      overflow-x: auto;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      padding: 8px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    td.cell {
+      cursor: pointer;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    td.cell:hover {
+      background: var(--bg);
+    }
+
+    .md {
+      margin: 6px 0;
+    }
+
+    .md p {
+      margin: 6px 0;
+    }
+
+    .md pre {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 13px;
+      margin: 6px 0;
+    }
+
+    .md code {
+      font-family: ui-monospace, monospace;
+      font-size: 12px;
+      background: var(--bg);
+      padding: 1px 4px;
+      border-radius: 4px;
+    }
+
+    .md pre code {
+      background: none;
+      padding: 0;
+    }
+
+    .md ul,
+    .md ol {
+      margin: 6px 0 6px 20px;
+    }
+
+    .md h1,
+    .md h2,
+    .md h3,
+    .md h4 {
+      margin: 10px 0 4px;
+    }
+
+    .md blockquote {
+      border-left: 3px solid var(--border);
+      margin: 6px 0;
+      padding-left: 10px;
+      color: var(--muted);
+    }
+
+    .reason {
+      font-size: 13px;
+      font-weight: 600;
+      margin: 2px 0 8px;
+    }
+
+    .preview {
+      width: 100%;
+      height: 420px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin: 6px 0 12px;
+      background: #fff;
+    }
+
+    .note {
+      font-size: 13px;
+      color: var(--muted);
+      font-style: italic;
+      margin: 2px 0 8px;
+      white-space: pre-wrap;
+    }
+
+    .pass {
+      color: var(--pass);
+    }
+
+    .fail {
+      color: var(--fail);
+    }
+
+    .part {
+      color: var(--part);
+    }
+
+    .hint {
+      font-size: 12px;
+      color: var(--muted);
+      margin: 10px 0 0;
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <h1>Mini LLM Bench</h1>
+    <p class="sub">6 tasks against a local llama-server. Run one model at a time and compare below.</p>
+
+    <section class="card">
+      <h2>Run</h2>
+      <div class="grid">
+        <div><label for="name">Model name (label for the table)</label>
+          <input id="name" placeholder="auto-detected if empty">
+          <button id="detect" type="button">Detect from server</button>
+        </div>
+        <div class="wide"><label for="url">llama-server URL</label>
+          <input id="url" value="http://localhost:8080">
+        </div>
+        <div><label for="runs">Runs per task</label>
+          <input id="runs" type="number" min="1" max="20" value="1">
+        </div>
+        <div><label for="temp">Temperature</label>
+          <input id="temp" type="number" min="0" max="2" step="0.1" value="0">
+        </div>
+        <div><label for="maxtok">Max tokens</label>
+          <input id="maxtok" type="number" min="64" step="64" value="8192">
+        </div>
+        <div><label for="note">Notes for this run</label>
+          <textarea id="note" rows="2" placeholder="optional notes saved with results"></textarea>
+        </div>
+      </div>
+      <div class="row">
+        <button id="run" class="primary">Run benchmark</button>
+        <progress id="bar" value="0" max="1"></progress>
+        <span id="status">Idle</span>
+      </div>
+      <pre id="log" hidden></pre>
+      <div
+        style="margin-top:12px;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);font-size:13px;color:var(--muted);">
+        ⚠️ <strong>Security:</strong> the <em>code</em> task executes model-generated Python locally. Only run models
+        you trust.
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Results</h2>
+      <div id="empty" class="sub">No results yet. Run a model above to see how it performs on these tasks:</div>
+      <ul id="emptyTasks" style="margin:8px 0 0;padding-left:20px;color:var(--muted);font-size:13px;"></ul>
+      <div class="scroll">
+        <table id="table"></table>
+      </div>
+      <p class="hint">Click a cell to see the prompt and the model's raw output. Re-running a model
+        with the same name replaces its row.</p>
+      <div class="row"><button id="clear">Clear all results</button></div>
+    </section>
+
+    <section id="detail" class="card" hidden></section>
+  </main>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    let TASKS = [], ROWS = [], wasRunning = false;
+    let detailContext = null, detailPage = 0;
+    let detailRunsSignature = '', detailPagerSignature = '';
+    const RUNS_PER_PAGE = 1;
+    const TASK_DESCRIPTIONS = {
+      math: 'Word problem with a numeric answer',
+      logic: 'Logic puzzle (who owns which pet)',
+      instructions: 'Format-following: exactly 3 short bullets',
+      json: 'Extract information into a JSON object',
+      code: 'Write and run a Python function',
+      game: 'Generate a single-file HTML5 game',
+      bulgarian: 'Correct Bulgarian definite-article usage',
+    };
+
+    function el(tag, text, cls) {
+      const e = document.createElement(tag);
+      if (text !== undefined) e.textContent = text;   // textContent: model output is never parsed as HTML
+      if (cls) e.className = cls;
+      return e;
+    }
+
+    async function api(path, body) {
+      const opts = body === undefined ? undefined : {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+      };
+      return (await fetch(path, opts)).json();
+    }
+
+    function scoreClass(p, t) { return p === t ? 'pass' : p === 0 ? 'fail' : 'part'; }
+
+    function render() {
+      const models = [...new Set(ROWS.map(r => r.model))];
+      const table = $('table');
+      table.replaceChildren();
+      const empty = $('empty');
+      const emptyTasks = $('emptyTasks');
+      if (models.length > 0) {
+        empty.hidden = true;
+        emptyTasks.hidden = true;
+      } else {
+        empty.hidden = false;
+        emptyTasks.hidden = false;
+        emptyTasks.innerHTML = TASKS.map(t => `<li><strong>${t.id}</strong>: ${TASK_DESCRIPTIONS[t.id]}</li>`).join('');
+      }
+      if (!models.length) return;
+
+      const head = el('tr');
+      head.append(el('th', 'model'));
+      TASKS.forEach(t => head.append(el('th', t.id)));
+      head.append(el('th', 'total'));
+      table.append(head);
+
+      models.forEach(m => {
+        const tr = el('tr');
+        tr.append(el('td', m));
+        let tp = 0, tt = 0;
+        TASKS.forEach(t => {
+          const rs = ROWS.filter(r => r.model === m && r.task === t.id);
+          const p = rs.filter(r => r.passed).length;
+          tp += p; tt += rs.length;
+          const td = el('td', rs.length ? `${p}/${rs.length}` : '-', 'cell ' + (rs.length ? scoreClass(p, rs.length) : ''));
+          td.onclick = () => showDetail(m, t);
+          tr.append(td);
+        });
+        tr.append(el('td', `${tp}/${tt}`, 'cell ' + (tt ? scoreClass(tp, tt) : '')));
+        table.append(tr);
+      });
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function inlineMd(s) {
+      s = escapeHtml(s);
+      s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+      s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+      s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+      return s;
+    }
+
+    function renderMarkdown(src) {
+      if (src === null || src === undefined) return '';
+      const lines = String(src).split(/\n/);
+      let html = '';
+      let inCode = false;
+      let codeLang = '';
+      let codeLines = [];
+      let inList = false;
+      let listType = '';
+      function closeList() {
+        if (inList) { html += '</' + listType + '>'; inList = false; listType = ''; }
+      }
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const fence = line.match(/^```(\w*)\s*$/);
+        if (fence) {
+          if (!inCode) {
+            closeList();
+            inCode = true;
+            codeLang = fence[1] || '';
+            codeLines = [];
+          } else {
+            html += '<pre><code' + (codeLang ? ' class="language-' + escapeHtml(codeLang) + '"' : '') + '>' +
+              escapeHtml(codeLines.join('\n')) + '</code></pre>';
+            inCode = false;
+          }
+          continue;
+        }
+        if (inCode) { codeLines.push(line); continue; }
+        const heading = line.match(/^(#{1,6})\s+(.*)$/);
+        if (heading) {
+          closeList();
+          const lvl = heading[1].length;
+          html += '<h' + lvl + '>' + inlineMd(heading[2]) + '</h' + lvl + '>';
+          continue;
+        }
+        const bq = line.match(/^>\s?(.*)$/);
+        if (bq) { closeList(); html += '<blockquote>' + inlineMd(bq[1]) + '</blockquote>'; continue; }
+        const ul = line.match(/^[-*+]\s+(.*)$/);
+        if (ul) {
+          if (!inList || listType !== 'ul') { closeList(); html += '<ul>'; inList = true; listType = 'ul'; }
+          html += '<li>' + inlineMd(ul[1]) + '</li>';
+          continue;
+        }
+        const ol = line.match(/^\d+\.\s+(.*)$/);
+        if (ol) {
+          if (!inList || listType !== 'ol') { closeList(); html += '<ol>'; inList = true; listType = 'ol'; }
+          html += '<li>' + inlineMd(ol[1]) + '</li>';
+          continue;
+        }
+        if (line.trim() === '') { closeList(); continue; }
+        closeList();
+        html += '<p>' + inlineMd(line) + '</p>';
+      }
+      if (inCode) html += '<pre><code>' + escapeHtml(codeLines.join('\n')) + '</code></pre>';
+      closeList();
+      return html;
+    }
+
+    function extractHtml(src) {
+      const m = String(src || '').match(/```html\s*([\s\S]*?)```/i);
+      if (m) return m[1].trim();
+      if (/<html[\s>]/i.test(src) || /<!DOCTYPE\s+html/i.test(src)) return String(src).trim();
+      return null;
+    }
+
+
+    function renderDetailRun(r, index) {
+      const d = $('detailRuns');
+      const outDiv = document.createElement('div');
+      outDiv.className = 'md';
+      outDiv.innerHTML = renderMarkdown(r.output || '(empty output)');
+      const reasonEl = document.createElement('div');
+      reasonEl.className = 'reason ' + (r.passed ? 'pass' : 'fail');
+      reasonEl.textContent = r.reason || (r.passed ? 'PASS' : 'FAIL');
+      d.append(el('label', `Run ${index + 1}: ${r.passed ? 'PASS' : 'FAIL'}`), reasonEl);
+      if (r.note) {
+        const noteEl = el('div', 'Note: ' + r.note, 'note');
+        d.append(noteEl);
+      }
+      const html = extractHtml(r.output);
+      if (html) {
+        const iframe = document.createElement('iframe');
+        iframe.className = 'preview';
+        iframe.srcdoc = html;
+        iframe.hidden = false;
+        const btnRow = document.createElement('div');
+        btnRow.className = 'row';
+        const openBtn = el('button', 'Open HTML in new tab');
+        openBtn.onclick = () => {
+          const blob = new Blob([html], { type: 'text/html' });
+          const url = URL.createObjectURL(blob);
+          window.open(url, '_blank');
+          setTimeout(() => URL.revokeObjectURL(url), 60000);
+        };
+        const toggleBtn = el('button', 'Render HTML inline');
+        toggleBtn.onclick = () => {
+          iframe.hidden = !iframe.hidden;
+          toggleBtn.textContent = iframe.hidden ? 'Hide inline HTML' : 'Render HTML inline';
+        };
+        btnRow.append(openBtn, toggleBtn);
+        d.append(iframe, btnRow);
+      }
+      d.append(outDiv);
+    }
+
+    function updateDetailRuns() {
+      if (!detailContext) return;
+      const container = $('detailRuns');
+      const pager = $('detailPager');
+      if (!container || !pager) return;
+      const runs = detailContext.runs;
+      const totalPages = Math.max(1, Math.ceil(runs.length / RUNS_PER_PAGE));
+      if (detailPage >= totalPages) detailPage = totalPages - 1;
+      if (detailPage < 0) detailPage = 0;
+      const start = detailPage * RUNS_PER_PAGE;
+      const visible = runs.slice(start, start + RUNS_PER_PAGE);
+      // Rebuild only when the visible runs change: the poll during a run must not
+      // wipe the detail view (or close an HTML preview opened by the user).
+      const runsSig = [detailContext.model, detailContext.taskId, detailPage,
+      visible.map(r => r.batch + ':' + r.run).join(',')].join('|');
+      if (runsSig !== detailRunsSignature) {
+        detailRunsSignature = runsSig;
+        container.replaceChildren();
+        if (!visible.length) {
+          container.append(el('p', 'No results yet for this task. It appears here as soon as the run finishes it.', 'sub'));
+        }
+        visible.forEach((r, i) => renderDetailRun(r, start + i));
+      }
+      const pagerSig = [detailContext.model, detailContext.taskId, detailPage, runs.length].join('|');
+      if (pagerSig !== detailPagerSignature) {
+        detailPagerSignature = pagerSig;
+        pager.replaceChildren();
+        if (runs.length > RUNS_PER_PAGE) {
+          const prev = el('button', 'Prev');
+          prev.disabled = detailPage === 0;
+          prev.onclick = () => { detailPage--; updateDetailRuns(); };
+          const info = el('span', `Page ${detailPage + 1} / ${totalPages}`);
+          info.style.margin = '0 8px';
+          const next = el('button', 'Next');
+          next.disabled = detailPage === totalPages - 1;
+          next.onclick = () => { detailPage++; updateDetailRuns(); };
+          pager.append(prev, info, next);
+        }
+      }
+    }
+
+    function showDetail(model, task) {
+      const d = $('detail');
+      const promptDiv = document.createElement('div');
+      promptDiv.className = 'md';
+      promptDiv.innerHTML = renderMarkdown(task.prompt);
+      const runsContainer = document.createElement('div');
+      runsContainer.id = 'detailRuns';
+      const pager = document.createElement('div');
+      pager.id = 'detailPager';
+      pager.className = 'row';
+      d.replaceChildren(el('h2', `${model} / ${task.id}`), el('label', 'Prompt'), promptDiv, pager, runsContainer);
+      detailContext = { model, taskId: task.id, runs: ROWS.filter(r => r.model === model && r.task === task.id) };
+      detailPage = 0;
+      detailRunsSignature = detailPagerSignature = '';
+      updateDetailRuns();
+      d.hidden = false;
+      d.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    async function loadResults() {
+      ROWS = await api('/api/results');
+      if (detailContext) {
+        detailContext.runs = ROWS.filter(r => r.model === detailContext.model && r.task === detailContext.taskId);
+        updateDetailRuns();
+      }
+      render();
+    }
+
+    async function poll() {
+      try {
+        const s = await api('/api/status');
+        $('run').disabled = s.running;
+        $('bar').value = s.total ? s.done / s.total : 0;
+        $('status').textContent = s.running ? `Running ${s.model}: ${s.done}/${s.total}`
+          : s.error ? 'Error: ' + s.error
+            : s.total ? `Finished ${s.model}` : 'Idle';
+        $('log').hidden = !s.log.length;
+        $('log').textContent = s.log.join('\n');
+        if (s.running || wasRunning) await loadResults();
+        wasRunning = s.running;
+      } catch (e) { $('status').textContent = 'Cannot reach web_bench.py server'; }
+    }
+
+    $('detect').onclick = async () => {
+      const url = $('url').value.trim();
+      if (!url) { alert('enter a server URL first'); return; }
+      try {
+        const res = await api('/api/detect_model?url=' + encodeURIComponent(url));
+        if (res.error) alert(res.error); else $('name').value = res.name;
+      } catch (e) { alert('detection failed'); }
+    };
+
+    $('run').onclick = async () => {
+      const res = await api('/api/run', {
+        name: $('name').value, url: $('url').value, runs: $('runs').value,
+        temperature: $('temp').value, max_tokens: $('maxtok').value,
+        note: $('note').value
+      });
+      if (res.error) alert(res.error);
+      poll();
+    };
+
+    $('clear').onclick = async () => {
+      if (!confirm('Delete all saved results?')) return;
+      const res = await api('/api/clear', {});
+      if (res.error) alert(res.error);
+      $('detail').hidden = true;
+      detailContext = null;
+      detailRunsSignature = detailPagerSignature = '';
+      loadResults();
+    };
+
+    (async () => { TASKS = await api('/api/tasks'); await loadResults(); await poll(); setInterval(poll, 1000); })();
+  </script>
+</body>
+
+</html>
