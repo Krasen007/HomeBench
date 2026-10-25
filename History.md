@@ -112,3 +112,19 @@ def is_palindrome(s: str) -    """
 ```
 
 can you temporarly disable markdown to confirm its not interfering
+
+FIXED: model output parsing strips ">" from code/HTML output, causing false failures.
+Root cause: homebench.chat() used r"\]*?>.*?\n" and r"\]*?>.*$" to drop reasoning blocks,
+but \]*?> matches a bare ">" and consumes the rest of the line. This corrupted every HTML
+tag (<html lang="en"> -> <html lang="en">) and code comparison (-> -> -, a > b -> a b),
+so code and game tasks failed even when the model output was fine.
+Fix: replaced with _sanitize_output() which only removes <thinking>...</thinking> blocks
+(and stray tags) and never touches ">" in normal output. Covered by
+tests/test_history_29_output_sanitization.py.
+
+RESTORED: markdown view for model output in the web UI (static/index.html).
+The output was temporarily rendered as literal preformatted text to confirm
+Markdown wasn't masking format. Now that the output parser no longer corrupts
+">" in code/HTML, renderDetailRun uses outDiv.innerHTML = renderMarkdown(...)
+again so code blocks format correctly. Raw HTML game output is still available
+via extractHtml() -> iframe preview ("Render HTML inline" / "Open HTML in new tab").

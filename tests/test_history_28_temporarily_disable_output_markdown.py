@@ -1,4 +1,4 @@
-"""History: show raw model output to verify Markdown isn't masking its format."""
+"""History: model output is rendered as Markdown again (disable was temporary)."""
 
 from pathlib import Path
 
@@ -8,10 +8,9 @@ RENDERER = PAGE.split("function renderDetailRun(r, index) {", 1)[1].split(
     "function updateDetailRuns()", 1)[0]
 
 
-def test_model_output_is_rendered_as_literal_preformatted_text():
-    assert "document.createElement('pre')" in RENDERER
-    assert "outDiv.textContent = r.output || '(empty output)';" in RENDERER
-    assert "outDiv.innerHTML = renderMarkdown" not in RENDERER
+def test_model_output_is_rendered_as_markdown():
+    assert "outDiv.innerHTML = renderMarkdown(r.output || '')" in RENDERER
+    assert "outDiv.textContent = r.output" not in RENDERER
 
 
 def test_prompt_markdown_and_html_preview_remain_available():

@@ -42,6 +42,15 @@ check_bg_article, explain_bg_article = _t_bg.check, _t_bg.explain
 # Talking to llama-server (OpenAI-compatible endpoint)
 # --------------------------------------------------------------------------
 
+
+def _sanitize_output(text):
+    if not isinstance(text, str):
+        return text
+    text = re.sub(r'(?is)<thinking>.*?</thinking>', '', text)
+    text = re.sub(r'(?i)</?thinking>', '', text)
+    return text
+
+
 def chat(base_url, prompt, temperature, max_tokens, timeout):
     body = json.dumps({
         "model": "local",  # llama-server ignores this; it serves one model
@@ -57,9 +66,7 @@ def chat(base_url, prompt, temperature, max_tokens, timeout):
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         text = json.load(resp)["choices"][0]["message"].get("content") or ""
     # Drop reasoning blocks from "thinking" models (e.g. Qwen3, DeepSeek-R1)
-    text = re.sub(r"\]*?>.*?\n", "", text, flags=re.S)
-    text = re.sub(r"\]*?>.*$", "", text, flags=re.S)
-    return text
+    return _sanitize_output(text)
 
 
 # --------------------------------------------------------------------------
