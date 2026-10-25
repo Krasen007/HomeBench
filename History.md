@@ -17,3 +17,13 @@ one of the current tasks is to create a single html application, i want to be ab
 in the game task, there should be more checks that detirmine if its a pass, the game should not throw errors and be playable
 
 i have made it to show pages for every run, also can you move the next prev buttons at the top, also move the render inline and open html in new tab above the code
+
+add another task to check bulgarian 
+Грешно използван пълен член (когато трябва да е кратък)
+Пълен член се използва само ако думата е подлог (вършител на действието) или сказуемно определение. Ако върху думата се извършва действието, се използва кратък член.
+Грешно: Вчера видях директорът. ❌
+Правилно: Вчера видях директора. (Аз го видях, той е допълнение).
+Грешно: Отидохме при лекарят. ❌
+Правилно: Отидохме при лекаря. (След предлози като при, в, на, с, за винаги се използва кратък член).
+Грешно: Извикаха ученикът в кабинета. ❌
+Правилно: Извикаха ученика в кабинета.

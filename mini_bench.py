@@ -337,6 +337,24 @@ def explain_game(text):
     return _game_status(text)[1]
 
 
+def _bg_article_status(text):
+    low = " ".join(text.split()).casefold()
+    expected_tokens = ["директора", "лекаря", "ученика", "влакът"]
+    missing = [t for t in expected_tokens if t not in low]
+    if missing:
+        return False, "FAIL: missing corrected form(s): " + ", ".join(missing)
+    return True, "PASS: all sentences use the correct article"
+
+
+def check_bg_article(text):
+    return _bg_article_status(text)[0]
+
+
+def explain_bg_article(text):
+    return _bg_article_status(text)[1]
+
+
+
 # --------------------------------------------------------------------------
 # The tasks
 # --------------------------------------------------------------------------
@@ -437,6 +455,21 @@ TASKS = [
         "check": check_game,
         "explain": explain_game,
     },
+    {
+        "id": "bulgarian",
+        "prompt": (
+            "Correct the use of the Bulgarian definite article (full vs. short form) "
+            "in the following sentences. Output only the corrected sentences, one per "
+            "line, in the same order:\\n"
+            "1. Вчера видях директорът.\\n"
+            "2. Отидохме при лекарят.\\n"
+            "3. Извикаха ученикът в кабинета.\\n"
+            "4. Влака закъсня с един час."
+        ),
+        "check": check_bg_article,
+        "explain": explain_bg_article,
+    },
+
 ]
 
 # --------------------------------------------------------------------------
