@@ -386,14 +386,52 @@ def load_rows(path):
         return []
 
 
+def infer_model_name(base_url):
+    """Best-effort model name from a llama-server (OpenAI-compatible) endpoint."""
+    base = base_url.rstrip("/")
+    try:
+        with urllib.request.urlopen(base + "/v1/models", timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8", "replace"))
+        models = data.get("data") or data.get("models") or []
+        if models:
+            m = models[0]
+            for key in ("id", "name", "model", "path"):
+                if m.get(key):
+                    return str(m[key])
+    except Exception:
+        pass
+    try:
+        with urllib.request.urlopen(base + "/props", timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8", "replace"))
+        for key in ("model_path", "model", "id", "name"):
+            if data.get(key):
+                val = str(data[key])
+                return os.path.splitext(os.path.basename(val))[0] or val
+    except Exception:
+        pass
+    return None
+
+
+def unique_model_name(name, existing):
+    name = (name or "").strip()
+    if not name:
+        return name
+    if name not in existing:
+        return name
+    i = 2
+    while "%s-%d" % (name, i) in existing:
+        i += 1
+    return "%s-%d" % (name, i)
+
+
 def main():
     ap = argparse.ArgumentParser(description="Tiny LLM benchmark for llama-server")
     ap.add_argument("--model", action="append", default=[], metavar="NAME=URL",
-                    help="e.g. qwen=http://localhost:8080 (repeatable)")
+                    help="e.g. qwen=http://localhost:8080 or just http://localhost:8080 (name auto-detected); repeatable")
     ap.add_argument("--runs", type=int, default=1, help="runs per task (default 1)")
     ap.add_argument("--temperature", type=float, default=0.0,
                     help="default 0. Use >0 (e.g. 0.7) with --runs 3 to test consistency")
-    ap.add_argument("--max-tokens", type=int, default=1024)
+    ap.add_argument("--max-tokens", type=int, default=8192)
     ap.add_argument("--timeout", type=int, default=300, help="seconds per request")
     ap.add_argument("--out", default="results.jsonl")
     ap.add_argument("--report", action="store_true", help="just print the saved results")
@@ -407,7 +445,17 @@ def main():
 
     with open(args.out, "a") as out:
         for spec in args.model:
-            name, _, url = spec.partition("=")
+            if "=" in spec:
+                name, _, url = spec.partition("=")
+            else:
+                name, url = "", spec
+            name, url = name.strip(), url.strip()
+            if not url:
+                url, name = name, ""
+            if not name:
+                name = infer_model_name(url) or "model"
+            existing = {r["model"] for r in load_rows(args.out)}
+            name = unique_model_name(name, existing)
             batch = int(time.time())
             print(f"\n== {name} ({url}) ==")
             for task in TASKS:

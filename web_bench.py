@@ -19,9 +19,11 @@ import json
 import os
 import threading
 import time
+import urllib.parse
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from mini_bench import TASKS, chat, load_rows
+from mini_bench import TASKS, chat, load_rows, infer_model_name, unique_model_name
 
 OUT = "results.jsonl"
 lock = threading.Lock()
@@ -88,15 +90,27 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
-        if self.path == "/":
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == "/":
             self.send(PAGE, ctype="text/html")
-        elif self.path == "/api/tasks":
+        elif parsed.path == "/api/tasks":
             self.send([{"id": t["id"], "prompt": t["prompt"]} for t in TASKS])
-        elif self.path == "/api/results":
+        elif parsed.path == "/api/results":
             self.send(latest_rows())
-        elif self.path == "/api/status":
+        elif parsed.path == "/api/status":
             with lock:
                 self.send(dict(state))
+        elif parsed.path == "/api/detect_model":
+            qs = urllib.parse.parse_qs(parsed.query)
+            url = (qs.get("url") or [""])[0].strip()
+            if not url:
+                self.send({"error": "missing url"}, 400)
+                return
+            name = infer_model_name(url)
+            if not name:
+                self.send({"error": "could not detect model name"}, 404)
+                return
+            self.send({"name": name})
         else:
             self.send({"error": "not found"}, 404)
 
@@ -117,19 +131,31 @@ class Handler(BaseHTTPRequestHandler):
 
         if self.path == "/api/run":
             try:
-                p = {
-                    "name": str(body["name"]).strip(),
-                    "url": str(body["url"]).strip(),
-                    "runs": int(body["runs"]),
-                    "temperature": float(body["temperature"]),
-                    "max_tokens": int(body["max_tokens"]),
-                }
+                name = str(body.get("name", "")).strip()
+                url = str(body["url"]).strip()
+                runs = int(body["runs"])
+                temperature = float(body["temperature"])
+                max_tokens = int(body["max_tokens"])
             except (KeyError, ValueError, TypeError):
                 return self.send({"error": "invalid parameters"}, 400)
-            if not p["name"] or not p["url"].startswith("http"):
-                return self.send({"error": "enter a model name and a URL starting with http"}, 400)
-            if not 1 <= p["runs"] <= 20:
+            if not url.startswith("http"):
+                return self.send({"error": "enter a URL starting with http"}, 400)
+            if not name:
+                name = infer_model_name(url)
+            if not name:
+                return self.send({"error": "enter a model name or a detectable server URL"}, 400)
+            if not 1 <= runs <= 20:
                 return self.send({"error": "runs must be between 1 and 20"}, 400)
+            # avoid overwriting previous results for the same label
+            existing = {r["model"] for r in load_rows(OUT)}
+            name = unique_model_name(name, existing)
+            p = {
+                "name": name,
+                "url": url,
+                "runs": runs,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            }
             with lock:
                 if state["running"]:
                     return self.send({"error": "a run is already in progress"}, 409)
@@ -212,7 +238,8 @@ PAGE = r"""<!doctype html>
     <h2>Run</h2>
     <div class="grid">
       <div><label for="name">Model name (label for the table)</label>
-           <input id="name" placeholder="e.g. qwen2.5-3b-q4"></div>
+           <input id="name" placeholder="auto-detected if empty">
+           <button id="detect" type="button">Detect from server</button></div>
       <div class="wide"><label for="url">llama-server URL</label>
            <input id="url" value="http://localhost:8080"></div>
       <div><label for="runs">Runs per task</label>
@@ -220,7 +247,7 @@ PAGE = r"""<!doctype html>
       <div><label for="temp">Temperature</label>
            <input id="temp" type="number" min="0" max="2" step="0.1" value="0"></div>
       <div><label for="maxtok">Max tokens</label>
-           <input id="maxtok" type="number" min="64" step="64" value="1024"></div>
+           <input id="maxtok" type="number" min="64" step="64" value="8192"></div>
     </div>
     <div class="row">
       <button id="run" class="primary">Run benchmark</button>
@@ -399,6 +426,15 @@ async function poll() {
     wasRunning = s.running;
   } catch (e) { $('status').textContent = 'Cannot reach web_bench.py server'; }
 }
+
+$('detect').onclick = async () => {
+  const url = $('url').value.trim();
+  if (!url) { alert('enter a server URL first'); return; }
+  try {
+    const res = await api('/api/detect_model?url=' + encodeURIComponent(url));
+    if (res.error) alert(res.error); else $('name').value = res.name;
+  } catch (e) { alert('detection failed'); }
+};
 
 $('run').onclick = async () => {
   const res = await api('/api/run', {
