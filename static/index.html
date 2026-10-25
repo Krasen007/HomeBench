@@ -496,9 +496,9 @@
 
     function renderDetailRun(r, index) {
       const d = $('detailRuns');
-      const outDiv = document.createElement('div');
+      const outDiv = document.createElement('pre');
       outDiv.className = 'md';
-      outDiv.innerHTML = renderMarkdown(r.output || '(empty output)');
+      outDiv.textContent = r.output || '(empty output)';
       const reasonEl = document.createElement('div');
       reasonEl.className = 'reason ' + (r.passed ? 'pass' : 'fail');
       reasonEl.textContent = r.reason || (r.passed ? 'PASS' : 'FAIL');

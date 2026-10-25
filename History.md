@@ -75,3 +75,40 @@ check_bg_article, explain_bg_article = _t_bg.check, _t_bg.explain
 
 read @/History.md and verify the code and create tests
 each statement in the history file should go with its own test file
+
+127.0.0.1 - - [25/Oct/2026 20:47:45] "GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 - is this normal for the server?
+
+⚠️ **Security:** the *code* task executes model-generated Python locally. Only run models you trust.
+hide this when the benchmark starts
+
+i think there is a problem with parsing the output of the models, simple code generation shows as the code blocks not formatted correctly and this causes the results to fail
+
+same problem for the game task as there is an html maybe the format is lost as well
+
+update history.md as per agents.md
+
+issue with format remains
+this is the output of the game generation:
+```
+<!DOCTYPE html<html lang="en"<head    <meta charset="UTF-8"    <meta name="viewport" content="width=device-width, initial-scale=1.0"    <title    <style        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+```
+and this is for code
+```
+import re
+
+def is_palindrome(s: str) -    """
+    Checks if a string is a palindrome, ignoring case and non-alphanumeric characters.
+    """
+    # 1. Convert to lowercase and keep only alphanumeric characters
+    processed_s = re.sub(r'[^a-z0-9]', '', s.lower())
+
+    # 2. Check if the processed string is equal to its reverse
+    return processed_s == processed_s[::-1]
+```
+
+can you temporarly disable markdown to confirm its not interfering
