@@ -44,3 +44,29 @@ def test_runtime_status_requires_observed_interaction_and_surfaces_late_errors(m
     passed, reason = game._game_runtime_status("<html></html>")
     assert not passed
     assert "late timer error" in reason
+
+
+def test_game_html_extraction_accepts_common_fence_formats():
+    document = """<!doctype html>
+<html><body><canvas></canvas>car coin yellow red green grass Play 200
+sound mousemove spawn</body></html>"""
+    for output in (
+        "```html\n" + document + "\n```",
+        "  ```HTML\r\n" + document + "\r\n  ```\r\n",
+        "```htm\n" + document,
+        "``` \n" + document + "\n```",
+        "Here is the game:\n" + document,
+    ):
+        assert game._extract_html(output) == document
+
+
+def test_game_validator_checks_extracted_document_not_markdown_wrapper(monkeypatch):
+    document = """<!doctype html>
+<html><body><canvas></canvas>car coin yellow red green grass Play 200
+sound mousemove spawn</body></html>"""
+    monkeypatch.setattr(game, "_game_runtime_status",
+                        lambda html: (True, "PASS: runtime ok"))
+    for output in ("```HTML\n" + document + "\n```",
+                   "Here is the game:\n" + document):
+        passed, reason = game._game_status(output)
+        assert passed, reason

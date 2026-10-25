@@ -8,7 +8,10 @@ import tempfile
 def _code_status(text):
     if not isinstance(text, str):
         return False, "FAIL: no model output received"
-    m = re.search(r"```(?:python)?\n(.*?)```", text, re.S)
+    m = re.search(
+        r"(?im)^[ \t]{0,3}```[ \t]*(?:python(?:\d+)?|py)?[ \t]*\r?\n"
+        r"(.*?)(?:^[ \t]{0,3}```[ \t]*\r?$|\Z)",
+        text, re.S | re.M)
     code = m.group(1) if m else text
     tests = '''
 cases = [("A man, a plan, a canal: Panama", True), ("race a car", False),

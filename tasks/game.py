@@ -116,8 +116,7 @@ def _game_runtime_status(html):
 def _game_status(text):
     if not isinstance(text, str):
         return False, "FAIL: no model output received"
-    m = re.search(r"```(?:html|htm)?\s*\n(.*?)```", text, re.S | re.I)
-    html = m.group(1).strip() if m else text.strip()
+    html = _extract_html(text)
     low = html.lower()
 
     if "<html" not in low and "<!doctype" not in low and "<canvas" not in low:
@@ -169,6 +168,24 @@ def _game_status(text):
     if rt_ok is None:
         return False, "INCONCLUSIVE: " + rt_reason
     return True, "PASS: valid single-file HTML game with all required elements (runtime OK)"
+
+
+def _extract_html(text):
+    fences = re.finditer(
+        r"(?im)^[ \t]{0,3}```[ \t]*(html|htm)?[ \t]*\r?\n"
+        r"(.*?)(?:^[ \t]{0,3}```[ \t]*\r?$|\Z)",
+        text, re.S | re.M)
+    blocks = [(m.group(1), m.group(2).strip()) for m in fences]
+    for language, content in blocks:
+        if language or re.search(r"(?i)<!doctype\s+html|<html[\s>]", content):
+            return content
+
+    start = re.search(r"(?i)<!doctype\s+html|<html[\s>]", text)
+    if start:
+        return text[start.start():].strip()
+    return text.strip()
+
+
 def check(text):
     return _game_status(text)[0]
 

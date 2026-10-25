@@ -484,9 +484,12 @@
     }
 
     function extractHtml(src) {
-      const m = String(src || '').match(/```html\s*([\s\S]*?)```/i);
-      if (m) return m[1].trim();
-      if (/<html[\s>]/i.test(src) || /<!DOCTYPE\s+html/i.test(src)) return String(src).trim();
+      src = String(src || '');
+      const fence = /^[ \t]{0,3}```[ \t]*(html|htm)?[ \t]*\r?\n([\s\S]*?)(?:^[ \t]{0,3}```[ \t]*\r?$|$(?![\s\S]))/im;
+      const m = fence.exec(src);
+      if (m && (m[1] || /<!doctype\s+html|<html[\s>]/i.test(m[2]))) return m[2].trim();
+      const start = /<!doctype\s+html|<html[\s>]/i.exec(src);
+      if (start) return src.slice(start.index).trim();
       return null;
     }
 
