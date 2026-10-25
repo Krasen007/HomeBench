@@ -404,7 +404,7 @@ function showDetail(model, task) {
   const promptDiv = document.createElement('div');
   promptDiv.className = 'md';
   promptDiv.innerHTML = renderMarkdown(task.prompt);
-  d.replaceChildren(el('h2', `${model} / ${task.id}`), el('label', 'Prompt'), promptDiv);
+  d.replaceChildren(el('h1', `${model} / ${task.id}`), el('label', 'Prompt'), promptDiv);
   ROWS.filter(r => r.model === model && r.task === task.id).forEach(r => {
     const outDiv = document.createElement('div');
     outDiv.className = 'md';

@@ -158,6 +158,100 @@ def explain_code(text):
     return _code_status(text)[1]
 
 
+def _browser_executable():
+    import shutil
+    env = os.environ.get("BROWSER_BIN") or os.environ.get("CHROME_BIN")
+    if env and os.path.exists(env):
+        return env
+    candidates = [
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+    ]
+    for c in candidates:
+        if os.path.exists(c):
+            return c
+    for name in ("msedge", "chrome", "chromium", "chromium-browser"):
+        p = shutil.which(name)
+        if p:
+            return p
+    return None
+
+
+def _inject_runtime_checks(html):
+    capture = ("<script>window.__errors=[];"
+               "window.addEventListener('error',function(e){window.__errors.push(e.message||String(e));});"
+               "window.addEventListener('unhandledrejection',function(e){"
+               "window.__errors.push('Promise: '+(e.reason&&(e.reason.message||e.reason)||e.reason));});"
+               "</script>")
+    interact = ("<script>window.addEventListener('load',function(){"
+                "setTimeout(function(){try{"
+                "var bs=Array.from(document.querySelectorAll('button'));"
+                "var play=bs.find(function(b){return /play/i.test(b.textContent||'');});"
+                "if(play)play.click();"
+                "var c=document.querySelector('canvas');"
+                "if(c){var ev=new MouseEvent('mousemove',{clientX:120,clientY:120,bubbles:true});c.dispatchEvent(ev);}"
+                "}catch(e){window.__errors.push('interact: '+(e.message||e));}"
+                "},1000);});</script>")
+    status = ("<script>window.addEventListener('load',function(){"
+              "setTimeout(function(){var d=document.createElement('div');"
+              "d.id='__bench_status';"
+              "d.textContent=window.__errors.length?'ERROR: '+window.__errors.join('; '):'OK';"
+              "document.body.appendChild(d);},4000);});</script>")
+    if re.search(r"<head[^>]*>", html, re.I):
+        html = re.sub(r"(<head[^>]*>)", r"\1" + capture, html, count=1, flags=re.I)
+    elif re.search(r"<body[^>]*>", html, re.I):
+        html = re.sub(r"(<body[^>]*>)", capture + r"\1", html, count=1, flags=re.I)
+    else:
+        html = capture + html
+    if re.search(r"</body>", html, re.I):
+        html = re.sub(r"</body>", interact + status + "</body>", html, count=1, flags=re.I)
+    else:
+        html = html + interact + status
+    return html
+
+
+def _game_runtime_status(html):
+    browser = _browser_executable()
+    if not browser:
+        return None, "runtime check skipped (no browser found)"
+    injected = _inject_runtime_checks(html)
+    fd, path = tempfile.mkstemp(suffix=".html")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(injected)
+        url = "file:///" + path.replace("\\", "/")
+        try:
+            r = subprocess.run(
+                [browser, "--headless=new", "--disable-gpu",
+                 "--virtual-time-budget=6000", "--dump-dom", url],
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                timeout=30)
+        except subprocess.TimeoutExpired:
+            return False, "FAIL: runtime check timed out"
+        out = r.stdout or ""
+        mm = re.search(r'<div[^>]*id="__bench_status"[^>]*>(.*?)</div>',
+                       out, re.S | re.I)
+        if not mm:
+            # fall back: any uncaught error text in stdout
+            if "Uncaught" in out or "ERROR:" in out:
+                return False, "FAIL: runtime error detected"
+            return None, "runtime check inconclusive (no status)"
+        status = mm.group(1).strip()
+        if status.startswith("ERROR:"):
+            msg = status[len("ERROR:"):].strip()
+            return False, "FAIL: runtime error: " + (msg or "unknown")
+        return True, "PASS: runs without runtime errors"
+    except Exception as e:
+        return None, "runtime check skipped (%s)" % e
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
 def _game_status(text):
     # Extract the HTML document from the model output (code block or raw).
     m = re.search(r"```(?:html|htm)?\s*\n(.*?)```", text, re.S | re.I)
@@ -214,7 +308,13 @@ def _game_status(text):
             except OSError:
                 pass
 
-    return True, "PASS: valid single-file HTML game with all required elements"
+    # Runtime playability check: load in a headless browser, click play, and
+    # ensure no uncaught errors are thrown.
+    rt_ok, rt_reason = _game_runtime_status(html)
+    if rt_ok is False:
+        return False, rt_reason
+    suffix = "" if rt_ok is None else " (runtime OK)"
+    return True, "PASS: valid single-file HTML game with all required elements" + suffix
 
 
 def check_game(text):
