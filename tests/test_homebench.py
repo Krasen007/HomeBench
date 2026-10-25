@@ -4,13 +4,23 @@ Covers fixes for:
 1. chat() returning None instead of the model response text
 2. send() failing on bytes payloads (results export)
 3. unique_model_name() returning None on duplicate model names
+4. Temperature not appended to note
+5. Unused backward-compatible aliases left in the module
+6. Run button staying grayed after benchmark finishes (state not reset)
 """
 import io
 import json
 import unittest
 from unittest.mock import MagicMock, patch
 
-from homebench import chat, unique_model_name, Handler, TASKS
+from homebench import (
+    chat,
+    unique_model_name,
+    Handler,
+    TASKS,
+    _format_note,
+    state,
+)
 from tasks import math, logic, instructions, json_task, code_task, game, bulgarian
 
 
@@ -127,6 +137,108 @@ class TestSendHandlesBytes(unittest.TestCase):
         h.send({"ok": True})
         data = h.wfile.getvalue()
         self.assertEqual(json.loads(data), {"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# _format_note — temperature appended to note
+# ---------------------------------------------------------------------------
+
+class TestFormatNote(unittest.TestCase):
+    def test_empty_note_becomes_temperature_only(self):
+        self.assertEqual(_format_note("", 0.7), "temp=0.7")
+        self.assertEqual(_format_note(None, 0.0), "temp=0.0")
+        self.assertEqual(_format_note("   ", 1.2), "temp=1.2")
+
+    def test_temperature_appended_to_existing_note(self):
+        self.assertEqual(_format_note("my run", 0.7), "my run (temp=0.7)")
+        self.assertEqual(_format_note("baseline", 0.0), "baseline (temp=0.0)")
+
+
+# ---------------------------------------------------------------------------
+# Aliases — backward-compatible check/explain aliases must NOT exist
+# ---------------------------------------------------------------------------
+
+class TestAliasesRemoved(unittest.TestCase):
+    def test_no_backward_compat_aliases(self):
+        import homebench
+
+        for alias in (
+            "check_math", "explain_math",
+            "check_logic", "explain_logic",
+            "check_instructions", "explain_instructions",
+            "check_json", "explain_json",
+            "check_code", "explain_code",
+            "check_game", "explain_game",
+            "check_bg_article", "explain_bg_article",
+            "_t_math", "_t_logic", "_t_instructions",
+            "_t_json", "_t_code", "_t_game", "_t_bg",
+        ):
+            self.assertNotIn(alias, dir(homebench),
+                             f"alias {alias!r} should have been removed")
+
+
+# ---------------------------------------------------------------------------
+# work() — state["running"] must reset to False when benchmark finishes
+# ---------------------------------------------------------------------------
+
+class TestWorkResetsState(unittest.TestCase):
+    def _make_handler(self, path="/api/run", body=None):
+        """Create a Handler-like object with mocked socket methods and rfile."""
+        h = Handler.__new__(Handler)
+        h.send_response = MagicMock()
+        h.send_header = MagicMock()
+        h.end_headers = MagicMock()
+        h.wfile = io.BytesIO()
+        h.path = path
+        h.headers = {"Content-Length": str(len(body or b"{}"))}
+        h.rfile = io.BytesIO(body or b"{}")
+        h.command = "POST"
+        return h
+
+    def _capture_work_function(self, h, body):
+        """Call do_POST, capture the threading.Thread target (work function)."""
+        with patch("homebench.run_benchmark"), \
+             patch("homebench.threading.Thread") as mock_thread:
+            h.do_POST()
+            self.assertTrue(mock_thread.called)
+            kwargs = mock_thread.call_args.kwargs
+            return kwargs["target"]
+
+    def test_state_running_reset_after_success(self):
+        h = self._make_handler(body=json.dumps({
+            "name": "test-model",
+            "url": "http://localhost:1234",
+            "runs": 1,
+            "temperature": 0.7,
+            "max_tokens": 8192,
+        }).encode())
+        work = self._capture_work_function(h, h.rfile.getvalue())
+
+        # Simulate successful benchmark completion
+        with patch("homebench.run_benchmark"):
+            work()
+
+        self.assertFalse(state["running"], "state['running'] should be False after success")
+
+    def test_state_running_reset_after_exception(self):
+        h = self._make_handler(body=json.dumps({
+            "name": "test-model",
+            "url": "http://localhost:1234",
+            "runs": 1,
+            "temperature": 0.7,
+            "max_tokens": 8192,
+        }).encode())
+        work = self._capture_work_function(h, h.rfile.getvalue())
+
+        # Simulate benchmark raising an exception
+        def boom(*args, **kwargs):
+            raise RuntimeError("server died")
+
+        with patch("homebench.run_benchmark", side_effect=boom):
+            with self.assertRaises(RuntimeError):
+                work()
+
+        self.assertFalse(state["running"], "state['running'] should be False after error")
 
 
 if __name__ == "__main__":

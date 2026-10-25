@@ -24,18 +24,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from tasks import TASKS
-# Backward-compatible aliases for the extracted task check/explain functions.
-from tasks import math as _t_math, logic as _t_logic, instructions as _t_instructions
-from tasks import json_task as _t_json, code_task as _t_code, game as _t_game
-from tasks import bulgarian as _t_bg
-
-check_math, explain_math = _t_math.check, _t_math.explain
-check_logic, explain_logic = _t_logic.check, _t_logic.explain
-check_instructions, explain_instructions = _t_instructions.check, _t_instructions.explain
-check_json, explain_json = _t_json.check, _t_json.explain
-check_code, explain_code = _t_code.check, _t_code.explain
-check_game, explain_game = _t_game.check, _t_game.explain
-check_bg_article, explain_bg_article = _t_bg.check, _t_bg.explain
 
 
 # --------------------------------------------------------------------------
@@ -133,6 +121,12 @@ def infer_model_name(base_url):
     except Exception:
         pass
     return None
+
+
+def _format_note(note, temperature):
+    """Append temperature to the note string."""
+    note = (note or "").strip()
+    return f"{note} (temp={temperature})" if note else f"temp={temperature}"
 
 
 def unique_model_name(name, existing):
@@ -236,7 +230,7 @@ class Handler(BaseHTTPRequestHandler):
             runs = int(body.get("runs", 1))
             temperature = float(body.get("temperature", 0.0))
             max_tokens = int(body.get("max_tokens", 8192))
-            note = body.get("note", "")
+            note = _format_note(body.get("note", ""), temperature)
             if not name:
                 name = infer_model_name(url) or "model"
             with lock:
@@ -249,13 +243,17 @@ class Handler(BaseHTTPRequestHandler):
                               "total": len(TASKS) * runs, "log": [], "error": None})
 
             def work():
-                def on_result(task_id, run, passed, reason):
+                try:
+                    def on_result(task_id, run, passed, reason):
+                        with lock:
+                            state["done"] += 1
+                            state["log"].append(
+                                f"{task_id} run {run + 1}: {'PASS' if passed else 'FAIL'}")
+                    run_benchmark(url, name, runs, temperature, max_tokens, 300,
+                                  WEB_OUT, note=note, on_result=on_result)
+                finally:
                     with lock:
-                        state["done"] += 1
-                        state["log"].append(
-                            f"{task_id} run {run + 1}: {'PASS' if passed else 'FAIL'}")
-                run_benchmark(url, name, runs, temperature, max_tokens, 300,
-                              WEB_OUT, note=note, on_result=on_result)
+                        state["running"] = False
 
             threading.Thread(target=work, daemon=True).start()
             self.send({"ok": True})
