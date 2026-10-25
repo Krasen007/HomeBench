@@ -318,7 +318,7 @@
         <span id="status">Idle</span>
       </div>
       <pre id="log" hidden></pre>
-      <div
+      <div id="securityWarning"
         style="margin-top:12px;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);font-size:13px;color:var(--muted);">
         ⚠️ <strong>Security:</strong> the <em>code</em> task executes model-generated Python locally. Only run models
         you trust.
@@ -608,6 +608,7 @@
       try {
         const s = await api('/api/status');
         $('run').disabled = s.running;
+        $('securityWarning').hidden = s.running;
         $('bar').value = s.total ? s.done / s.total : 0;
         $('status').textContent = s.running ? `Running ${s.model}: ${s.done}/${s.total}`
           : s.error ? 'Error: ' + s.error

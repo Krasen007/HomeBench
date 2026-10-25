@@ -14,6 +14,11 @@ def test_web_ui_warns_about_running_model_generated_python():
     assert "Only run models" in HTML
 
 
+def test_web_security_warning_is_hidden_only_while_benchmark_runs():
+    assert 'id="securityWarning"' in HTML
+    assert "$('securityWarning').hidden = s.running;" in HTML
+
+
 def test_code_task_documents_that_it_executes_generated_python():
     source = inspect.getsource(code_task._code_status)
     assert "subprocess.run([sys.executable, path]" in source
