@@ -225,6 +225,7 @@ PAGE = r"""<!doctype html>
   .md h1, .md h2, .md h3, .md h4 { margin: 10px 0 4px; }
   .md blockquote { border-left: 3px solid var(--border); margin: 6px 0; padding-left: 10px; color: var(--muted); }
   .reason { font-size: 13px; font-weight: 600; margin: 2px 0 8px; }
+  .preview { width: 100%; height: 420px; border: 1px solid var(--border); border-radius: 8px; margin: 6px 0 12px; background: #fff; }
   .pass { color: var(--pass); } .fail { color: var(--fail); } .part { color: var(--part); }
   .hint { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
 </style>
@@ -391,6 +392,13 @@ function renderMarkdown(src) {
   return html;
 }
 
+function extractHtml(src) {
+  const m = String(src || '').match(/```html\\s*([\\s\\S]*?)```/i);
+  if (m) return m[1].trim();
+  if (/<html[\\s>]/i.test(src) || /<!DOCTYPE\\s+html/i.test(src)) return String(src).trim();
+  return null;
+}
+
 function showDetail(model, task) {
   const d = $('detail');
   const promptDiv = document.createElement('div');
@@ -405,6 +413,29 @@ function showDetail(model, task) {
     reasonEl.className = 'reason ' + (r.passed ? 'pass' : 'fail');
     reasonEl.textContent = r.reason || (r.passed ? 'PASS' : 'FAIL');
     d.append(el('label', `Run ${r.run + 1}: ${r.passed ? 'PASS' : 'FAIL'}`), reasonEl, outDiv);
+    const html = extractHtml(r.output);
+    if (html) {
+      const btnRow = document.createElement('div');
+      btnRow.className = 'row';
+      const openBtn = el('button', 'Open HTML in new tab');
+      openBtn.onclick = () => {
+        const blob = new Blob([html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      };
+      const toggleBtn = el('button', 'Render HTML inline');
+      const frame = document.createElement('iframe');
+      frame.className = 'preview';
+      frame.srcdoc = html;
+      frame.hidden = true;
+      toggleBtn.onclick = () => {
+        frame.hidden = !frame.hidden;
+        toggleBtn.textContent = frame.hidden ? 'Render HTML inline' : 'Hide inline HTML';
+      };
+      btnRow.append(openBtn, toggleBtn);
+      d.append(btnRow, frame);
+    }
   });
   d.hidden = false;
   d.scrollIntoView({ behavior: 'smooth' });

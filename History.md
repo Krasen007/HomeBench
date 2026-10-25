@@ -6,3 +6,4 @@ in @/mini_bench.py implement F:\AI\repos\HomeBench\GameDesignDocument.md as a te
 make the web interface render correctly markdown
 for each pass or fail show the passing or failing condition in the answer
 when i run the same model multiple times Model name (label for the table) should not replace the last results, add automatic increments, also it should be possible to infer the name of the model from llama.cpp
+one of the current tasks is to create a single html application, i want to be able to view the resulting html from the results of the task, maybe add a button to show in external page or render it inside the current page
