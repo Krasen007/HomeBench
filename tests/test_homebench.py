@@ -5,7 +5,7 @@ Covers fixes for:
 2. send() failing on bytes payloads (results export)
 3. unique_model_name() returning None on duplicate model names
 4. Temperature not appended to note
-5. Unused backward-compatible aliases left in the module
+5. Backward-compatible aliases map to the extracted task functions
 6. Run button staying grayed after benchmark finishes (state not reset)
 """
 import io
@@ -155,26 +155,20 @@ class TestFormatNote(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Aliases — backward-compatible check/explain aliases must NOT exist
+# Aliases — backward-compatible check/explain aliases map to task functions
 # ---------------------------------------------------------------------------
 
-class TestAliasesRemoved(unittest.TestCase):
-    def test_no_backward_compat_aliases(self):
+class TestTaskAliases(unittest.TestCase):
+    def test_backward_compat_aliases_match_task_functions(self):
         import homebench
 
-        for alias in (
-            "check_math", "explain_math",
-            "check_logic", "explain_logic",
-            "check_instructions", "explain_instructions",
-            "check_json", "explain_json",
-            "check_code", "explain_code",
-            "check_game", "explain_game",
-            "check_bg_article", "explain_bg_article",
-            "_t_math", "_t_logic", "_t_instructions",
-            "_t_json", "_t_code", "_t_game", "_t_bg",
+        for suffix, module in (
+            ("math", math), ("logic", logic), ("instructions", instructions),
+            ("json", json_task), ("code", code_task), ("game", game),
+            ("bg_article", bulgarian),
         ):
-            self.assertNotIn(alias, dir(homebench),
-                             f"alias {alias!r} should have been removed")
+            self.assertIs(getattr(homebench, "check_" + suffix), module.check)
+            self.assertIs(getattr(homebench, "explain_" + suffix), module.explain)
 
 
 # ---------------------------------------------------------------------------

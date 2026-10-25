@@ -65,7 +65,8 @@ def _inject_runtime_checks(html):
     else:
         html = html + interact + status
     return html
-"""
+
+
 def _game_runtime_status(html):
     browser = _browser_executable()
     if not browser:
@@ -103,7 +104,8 @@ def _game_runtime_status(html):
             os.remove(path)
         except OSError:
             pass
-"""
+
+
 def _game_status(text):
     if not isinstance(text, str):
         return False, "FAIL: no model output received"

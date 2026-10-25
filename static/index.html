@@ -287,7 +287,7 @@
 <body>
   <main>
     <h1>Mini LLM Bench aka HomeBench</h1>
-    <p class="sub">6 tasks against a local llama-server. Run one model at a time and compare below.</p>
+    <p class="sub">7 tasks against a local llama-server. Run one model at a time and compare below.</p>
 
     <section class="card">
       <h2>Run</h2>
@@ -333,7 +333,7 @@
         <table id="table"></table>
       </div>
       <p class="hint">Click a cell to see the prompt and the model's raw output. Re-running a model
-        with the same name replaces its row.</p>
+        with the same name gets an incremented label so previous results are preserved.</p>
       <div class="row"><button id="export">Export results</button> <button id="clear">Clear all results</button></div>
     </section>
 
@@ -509,7 +509,7 @@
         const iframe = document.createElement('iframe');
         iframe.className = 'preview';
         iframe.srcdoc = html;
-        iframe.hidden = false;
+        iframe.hidden = true;
         const btnRow = document.createElement('div');
         btnRow.className = 'row';
         const openBtn = el('button', 'Open HTML in new tab');
@@ -522,10 +522,10 @@
         const toggleBtn = el('button', 'Render HTML inline');
         toggleBtn.onclick = () => {
           iframe.hidden = !iframe.hidden;
-          toggleBtn.textContent = iframe.hidden ? 'Hide inline HTML' : 'Render HTML inline';
+          toggleBtn.textContent = iframe.hidden ? 'Render HTML inline' : 'Hide inline HTML';
         };
         btnRow.append(openBtn, toggleBtn);
-        d.append(iframe, btnRow);
+        d.append(btnRow, iframe);
       }
       d.append(outDiv);
     }
