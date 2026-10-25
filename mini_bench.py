@@ -155,6 +155,7 @@ def main():
     if not args.model:
         ap.error("give at least one --model NAME=URL (or use --report)")
 
+    print("⚠️  WARNING: the 'code' task executes model-generated Python locally. Only run models you trust.\n")
     with open(args.out, "a") as out:
         for spec in args.model:
             if "=" in spec:

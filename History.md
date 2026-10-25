@@ -32,3 +32,9 @@ extract all tasks and checks into separate files into a new folder
 
 there is a bug, when i try to view some of the results in the web view the results show for a moment and then hide, this happens when the benchmark is running, however i want to be able to view the results in real time
 make the button Render HTML inline , actually show the render above the answer, e.g. below the button.
+
+### 3. Improve the empty state (Low priority)
+__Action:__ Replace `"No results yet. Run a model above."` with something more welcoming — e.g., show the 7 task IDs with brief descriptions so a new user knows what will be tested.
+### 4. Add a security warning for `code_task` (Medium priority)
+__Action:__ Add a clear, visible warning in both CLI and web UI that model-generated code is executed locally. Consider sandboxing options.
+

@@ -262,11 +262,15 @@ PAGE = r"""<!doctype html>
       <span id="status">Idle</span>
     </div>
     <pre id="log" hidden></pre>
+    <div style="margin-top:12px;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);font-size:13px;color:var(--muted);">
+      ⚠️ <strong>Security:</strong> the <em>code</em> task executes model-generated Python locally. Only run models you trust.
+    </div>
   </section>
 
   <section class="card">
     <h2>Results</h2>
-    <p id="empty" class="sub">No results yet. Run a model above.</p>
+    <div id="empty" class="sub">No results yet. Run a model above to see how it performs on these tasks:</div>
+    <ul id="emptyTasks" style="margin:8px 0 0;padding-left:20px;color:var(--muted);font-size:13px;"></ul>
     <div class="scroll"><table id="table"></table></div>
     <p class="hint">Click a cell to see the prompt and the model's raw output. Re-running a model
        with the same name replaces its row.</p>
@@ -282,6 +286,15 @@ let TASKS = [], ROWS = [], wasRunning = false;
 let detailContext = null, detailPage = 0;
 let detailRunsSignature = '', detailPagerSignature = '';
 const RUNS_PER_PAGE = 1;
+const TASK_DESCRIPTIONS = {
+  math: 'Word problem with a numeric answer',
+  logic: 'Logic puzzle (who owns which pet)',
+  instructions: 'Format-following: exactly 3 short bullets',
+  json: 'Extract information into a JSON object',
+  code: 'Write and run a Python function',
+  game: 'Generate a single-file HTML5 game',
+  bulgarian: 'Correct Bulgarian definite-article usage',
+};
 
 function el(tag, text, cls) {
   const e = document.createElement(tag);
@@ -303,7 +316,16 @@ function render() {
   const models = [...new Set(ROWS.map(r => r.model))];
   const table = $('table');
   table.replaceChildren();
-  $('empty').hidden = models.length > 0;
+  const empty = $('empty');
+  const emptyTasks = $('emptyTasks');
+  if (models.length > 0) {
+    empty.hidden = true;
+    emptyTasks.hidden = true;
+  } else {
+    empty.hidden = false;
+    emptyTasks.hidden = false;
+    emptyTasks.innerHTML = TASKS.map(t => `<li><strong>${t.id}</strong>: ${TASK_DESCRIPTIONS[t.id]}</li>`).join('');
+  }
   if (!models.length) return;
 
   const head = el('tr');
