@@ -17,6 +17,7 @@ import json
 import os
 import re
 import threading
+import tempfile
 import time
 import urllib.parse
 import urllib.request
@@ -177,9 +178,19 @@ def rename_model(path, old_name, new_name):
     for r in rows:
         if r.get("model") == old_name:
             r["model"] = final
-    with open(path, "w", encoding="utf-8") as f:
-        for r in rows:
-            f.write(json.dumps(r) + "\n")
+    directory = os.path.dirname(os.path.abspath(path))
+    fd, temp_path = tempfile.mkstemp(prefix=".homebench-", suffix=".tmp",
+                                     dir=directory)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            for r in rows:
+                f.write(json.dumps(r) + "\n")
+        os.replace(temp_path, path)
+    finally:
+        try:
+            os.remove(temp_path)
+        except FileNotFoundError:
+            pass
     return final
 
 
@@ -317,6 +328,10 @@ class Handler(BaseHTTPRequestHandler):
             old_name = body.get("old_name") or ""
             new_name = body.get("new_name") or ""
             with lock:
+                if state["running"]:
+                    self.send({"error": "cannot rename a model while a benchmark is running"},
+                              code=409)
+                    return
                 try:
                     final = rename_model(WEB_OUT, old_name, new_name)
                 except (ValueError, KeyError) as e:

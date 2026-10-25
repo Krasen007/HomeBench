@@ -14,13 +14,13 @@ def test_rows_store_temperature():
     with patch("homebench.chat", return_value="Answer: 2.80"):
         fd, path = tempfile.mkstemp(suffix=".jsonl")
         os.close(fd)
-    try:
-        run_benchmark("http://localhost:1234", "temp-model", 1, 0.7, 256, 30, path)
-        rows = [json.loads(line) for line in open(path)]
-        assert rows
-        assert {r["temperature"] for r in rows} == {0.7}
-    finally:
-        os.unlink(path)
+        try:
+            run_benchmark("http://localhost:1234", "temp-model", 1, 0.7, 256, 30, path)
+            rows = [json.loads(line) for line in open(path)]
+            assert rows
+            assert {r["temperature"] for r in rows} == {0.7}
+        finally:
+            os.unlink(path)
 
 
 def test_results_table_has_temperature_column():

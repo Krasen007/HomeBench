@@ -399,7 +399,16 @@
         const tr = el('tr');
         const modelTd = el('td', m, 'cell');
         modelTd.title = 'Click to rename this model';
+        modelTd.tabIndex = 0;
+        modelTd.setAttribute('role', 'button');
+        modelTd.setAttribute('aria-label', `Rename model ${m}`);
         modelTd.onclick = () => editModelName(modelTd, m);
+        modelTd.onkeydown = e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            editModelName(modelTd, m);
+          }
+        };
         tr.append(modelTd);
         const modelRows = ROWS.filter(r => r.model === m);
         const temps = [...new Set(modelRows.map(r => r.temperature).filter(v => v !== undefined))];

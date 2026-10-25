@@ -130,3 +130,11 @@ again so code blocks format correctly. Raw HTML game output is still available
 via extractHtml() -> iframe preview ("Render HTML inline" / "Open HTML in new tab").
 1. make the next and prev buttons go trough all the tests, so if each test is 3/3 after you view the 3 pages, the next button should move to the next test, so from math it will go to logic
 2. add option to edit the name of the model from the results page, and add colum showing the temperature
+
+Review: Reject model renames while a benchmark is running, under the existing lock. See tests/test_history_30_rename_during_run.py.
+
+Review: Write renamed JSONL results to a same-directory temporary file and replace atomically, preserving the original if writing fails. See tests/test_history_31_atomic_rename_write.py.
+
+Review: Make the model rename control keyboard-accessible with Enter and Space while preserving click activation. See tests/test_history_32_keyboard_rename.py.
+
+Review: Keep the mocked chat active for the full run_benchmark call in the temperature-column test. See tests/test_history_33_temperature_test_mock_scope.py.
