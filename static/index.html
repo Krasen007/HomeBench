@@ -334,7 +334,7 @@
       </div>
       <p class="hint">Click a cell to see the prompt and the model's raw output. Re-running a model
         with the same name replaces its row.</p>
-      <div class="row"><button id="clear">Clear all results</button></div>
+      <div class="row"><button id="export">Export results</button> <button id="clear">Clear all results</button></div>
     </section>
 
     <section id="detail" class="card" hidden></section>
@@ -641,6 +641,19 @@
       detailContext = null;
       detailRunsSignature = detailPagerSignature = '';
       loadResults();
+    };
+
+    $('export').onclick = async () => {
+      const res = await fetch('/api/export');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'results.jsonl';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     };
 
     (async () => { TASKS = await api('/api/tasks'); await loadResults(); await poll(); setInterval(poll, 1000); })();

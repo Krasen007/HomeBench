@@ -38,3 +38,11 @@ __Action:__ Replace `"No results yet. Run a model above."` with something more w
 ### 4. Add a security warning for `code_task` (Medium priority)
 __Action:__ Add a clear, visible warning in both CLI and web UI that model-generated code is executed locally. Consider sandboxing options.
 
+extract the html from web_bench to a new file
+
+merge web_bench and mini_bench because they serve similar purpose
+
+make the --web default 
+remove the CLI usage:
+    python homebench.py --model qwen=http://localhost:8080 --model llama=http://localhost:8081
+the python homebench.py --report can be an export button in the web

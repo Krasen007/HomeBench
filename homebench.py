@@ -1,24 +1,21 @@
 #!/usr/bin/env python3
 """
 homebench.py - a tiny 7-task LLM benchmark for llama.cpp (llama-server).
-CLI mode: run benchmarks and print a results table.
-Web UI mode: same benchmark through a browser at http://localhost:8000.
-Only needs Python 3.8+ (standard library, no pip installs).
 
-CLI usage:
-    python homebench.py --model qwen=http://localhost:8080 --model llama=http://localhost:8081
-    python homebench.py --report
-Web UI usage:
-    python homebench.py --web
+Starts a web UI at http://localhost:8000. Open it in your browser, enter a
+llama-server URL, and run benchmarks. Results accumulate in results.jsonl.
+
+Usage:
+    python homebench.py
     # then open http://localhost:8000
+
+    python homebench.py --port 8001
+    # custom port
 """
 import argparse
 import json
 import os
 import re
-import subprocess
-import sys
-import tempfile
 import threading
 import time
 import urllib.parse
@@ -99,33 +96,6 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
     return batch
 
 
-# --------------------------------------------------------------------------
-# Reporting (CLI)
-# --------------------------------------------------------------------------
-
-def report(rows):
-    if not rows:
-        print("No results yet.")
-        return
-    models = list(dict.fromkeys(r["model"] for r in rows))
-    # If a model was run several times, only show its most recent batch
-    latest = {m: max(r["batch"] for r in rows if r["model"] == m) for m in models}
-    rows = [r for r in rows if r["batch"] == latest[r["model"]]]
-
-    ids = [t["id"] for t in TASKS]
-    w = max(len(m) for m in models + ["model"])
-    print("\n" + "model".ljust(w) + "  " + "  ".join(i.ljust(12) for i in ids) + "  total")
-    print("-" * (w + 2 + 14 * len(ids) + 7))
-    for m in models:
-        cells, tp, tt = [], 0, 0
-        for t in ids:
-            rs = [r for r in rows if r["model"] == m and r["task"] == t]
-            p = sum(r["passed"] for r in rs)
-            cells.append(f"{p}/{len(rs)}".ljust(12))
-            tp, tt = tp + p, tt + len(rs)
-        print(m.ljust(w) + "  " + "  ".join(cells) + f"  {tp}/{tt}")
-
-
 def load_rows(path):
     if not os.path.exists(path):
         return []
@@ -191,8 +161,8 @@ def latest_rows():
 
 
 class Handler(BaseHTTPRequestHandler):
-    def log_message(self, *args):  # keep the terminal quiet
-        pass
+    # def log_message(self, *args):  # keep the terminal quiet
+    #     pass
 
     def send(self, payload, code=200, ctype="application/json"):
         data = payload.encode() if isinstance(payload, str) else json.dumps(payload).encode()
@@ -233,6 +203,14 @@ class Handler(BaseHTTPRequestHandler):
                     self.send({"error": "could not infer model name"}, code=400)
             except Exception as e:
                 self.send({"error": str(e)}, code=400)
+            return
+        if path == "/api/export":
+            try:
+                with open(WEB_OUT, "rb") as f:
+                    data = f.read()
+            except FileNotFoundError:
+                data = b""
+            self.send(data, ctype="application/jsonl")
             return
         self.send({"error": "not found"}, code=404)
 
@@ -295,11 +273,6 @@ PAGE = PAGE_PATH.read_text(encoding="utf-8")
 def confirm_clear():
     """No-op in headless; the web UI confirms via browser dialog before calling /api/clear."""
     return True
-    i = 2
-    while "%s-%d" % (name, i) in existing:
-        i += 1
-    return "%s-%d" % (name, i)
-    return text.strip()
 
 
 # --------------------------------------------------------------------------
@@ -308,72 +281,17 @@ def confirm_clear():
 
 def main():
     ap = argparse.ArgumentParser(
-        description="LLM benchmark for llama-server (CLI + web UI)")
-    ap.add_argument("--web", action="store_true",
-                    help="start the web UI instead of the CLI benchmark")
+        description="LLM benchmark for llama-server — opens a web UI at http://localhost:8000")
     ap.add_argument("--port", type=int, default=8000,
                     help="web UI port (default 8000)")
-    ap.add_argument("--model", action="append", default=[], metavar="NAME=URL",
-                    help="e.g. qwen=http://localhost:8080 or just http://localhost:8080 "
-                         "(name auto-detected); repeatable (CLI mode)")
-    ap.add_argument("--runs", type=int, default=1,
-                    help="runs per task (CLI mode, default 1)")
-    ap.add_argument("--temperature", type=float, default=0.0,
-                    help="default 0. Use >0 (e.g. 0.7) with --runs 3 to test consistency "
-                         "(CLI mode)")
-    ap.add_argument("--max-tokens", type=int, default=8192,
-                    help="CLI mode")
-    ap.add_argument("--timeout", type=int, default=300,
-                    help="seconds per request (CLI mode)")
-    ap.add_argument("--out", default="results.jsonl",
-                    help="results file (shared with web UI, default results.jsonl)")
-    ap.add_argument("--report", action="store_true",
-                    help="just print the saved results (CLI mode)")
     args = ap.parse_args()
 
-    global WEB_OUT
-    WEB_OUT = args.out
-
-    if args.web:
-        server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
-        print(f"Open http://localhost:{args.port}  (Ctrl+C to stop)")
-        try:
-            server.serve_forever()
-        except KeyboardInterrupt:
-            print("\nStopped.")
-        return
-
-    if args.report:
-        report(load_rows(args.out))
-        return
-    if not args.model:
-        ap.error("give at least one --model NAME=URL (or use --report or --web)")
-
-    print("⚠️  WARNING: the 'code' task executes model-generated Python locally. "
-          "Only run models you trust.\n")
-    for spec in args.model:
-        if "=" in spec:
-            name, _, url = spec.partition("=")
-        else:
-            name, url = "", spec
-        name, url = name.strip(), url.strip()
-        if not url:
-            url, name = name, ""
-        if not name:
-            name = infer_model_name(url) or "model"
-        existing = {r["model"] for r in load_rows(args.out)}
-        name = unique_model_name(name, existing)
-
-        def on_result(task_id, run, passed, reason):
-            print(f"  {task_id:<13} run {run + 1}: {'PASS' if passed else 'FAIL'} - {reason}")
-
-        print(f"\n== {name} ({url}) ==")
-        run_benchmark(url, name, args.runs, args.temperature,
-                      args.max_tokens, args.timeout, args.out,
-                      on_result=on_result)
-
-    report(load_rows(args.out))
-    print(f"\nRaw outputs saved in {args.out} (inspect FAILs before trusting them).")
+    server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    print(f"Open http://localhost:{args.port}  (Ctrl+C to stop)")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nStopped.")
 
 
 if __name__ == "__main__":
