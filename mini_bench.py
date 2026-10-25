@@ -180,25 +180,36 @@ def _browser_executable():
 
 
 def _inject_runtime_checks(html):
-    capture = ("<script>window.__errors=[];"
-               "window.addEventListener('error',function(e){window.__errors.push(e.message||String(e));});"
+    capture = ("<script>window.__errors=[];window.__bench_interaction=null;"
+               "window.__bench_refresh_status=function(){var d=document.getElementById('__bench_status');"
+               "if(d)d.textContent=window.__errors.length?'ERROR: '+window.__errors.join('; '):"
+               "window.__bench_interaction===true?'OK':'ERROR: no observable game-state change after interaction';};"
+               "window.addEventListener('error',function(e){window.__errors.push(e.message||String(e));"
+               "window.__bench_refresh_status();});"
                "window.addEventListener('unhandledrejection',function(e){"
-               "window.__errors.push('Promise: '+(e.reason&&(e.reason.message||e.reason)||e.reason));});"
+               "window.__errors.push('Promise: '+(e.reason&&(e.reason.message||e.reason)||e.reason));"
+               "window.__bench_refresh_status();});"
                "</script>")
     interact = ("<script>window.addEventListener('load',function(){"
                 "setTimeout(function(){try{"
+                "function snapshot(){var s=document.body?document.body.innerHTML:'';"
+                "Array.from(document.querySelectorAll('canvas')).forEach(function(c){"
+                "try{s+='|canvas:'+c.toDataURL();}catch(e){s+='|canvas-size:'+c.width+'x'+c.height;}});"
+                "return s;}"
+                "var before=snapshot();"
                 "var bs=Array.from(document.querySelectorAll('button'));"
                 "var play=bs.find(function(b){return /play/i.test(b.textContent||'');});"
                 "if(play)play.click();"
                 "var c=document.querySelector('canvas');"
                 "if(c){var ev=new MouseEvent('mousemove',{clientX:120,clientY:120,bubbles:true});c.dispatchEvent(ev);}"
-                "}catch(e){window.__errors.push('interact: '+(e.message||e));}"
+                "setTimeout(function(){window.__bench_interaction=snapshot()!==before;"
+                "window.__bench_refresh_status();},500);"
+                "}catch(e){window.__errors.push('interact: '+(e.message||e));"
+                "window.__bench_interaction=false;window.__bench_refresh_status();}"
                 "},1000);});</script>")
     status = ("<script>window.addEventListener('load',function(){"
-              "setTimeout(function(){var d=document.createElement('div');"
-              "d.id='__bench_status';"
-              "d.textContent=window.__errors.length?'ERROR: '+window.__errors.join('; '):'OK';"
-              "document.body.appendChild(d);},4000);});</script>")
+              "setTimeout(function(){var d=document.createElement('div');d.id='__bench_status';"
+              "document.body.appendChild(d);window.__bench_refresh_status();},4000);});</script>")
     if re.search(r"<head[^>]*>", html, re.I):
         html = re.sub(r"(<head[^>]*>)", r"\1" + capture, html, count=1, flags=re.I)
     elif re.search(r"<body[^>]*>", html, re.I):
@@ -313,8 +324,9 @@ def _game_status(text):
     rt_ok, rt_reason = _game_runtime_status(html)
     if rt_ok is False:
         return False, rt_reason
-    suffix = "" if rt_ok is None else " (runtime OK)"
-    return True, "PASS: valid single-file HTML game with all required elements" + suffix
+    if rt_ok is None:
+        return False, "INCONCLUSIVE: " + rt_reason
+    return True, "PASS: valid single-file HTML game with all required elements (runtime OK)"
 
 
 def check_game(text):

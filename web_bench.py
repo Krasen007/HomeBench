@@ -273,6 +273,8 @@ PAGE = r"""<!doctype html>
 <script>
 const $ = id => document.getElementById(id);
 let TASKS = [], ROWS = [], wasRunning = false;
+let detailContext = null, detailPage = 0;
+const RUNS_PER_PAGE = 1;
 
 function el(tag, text, cls) {
   const e = document.createElement(tag);
@@ -399,49 +401,96 @@ function extractHtml(src) {
   return null;
 }
 
+
+function renderDetailRun(r, index) {
+  const d = $('detailRuns');
+  const outDiv = document.createElement('div');
+  outDiv.className = 'md';
+  outDiv.innerHTML = renderMarkdown(r.output || '(empty output)');
+  const reasonEl = document.createElement('div');
+  reasonEl.className = 'reason ' + (r.passed ? 'pass' : 'fail');
+  reasonEl.textContent = r.reason || (r.passed ? 'PASS' : 'FAIL');
+  d.append(el('label', `Run ${index + 1}: ${r.passed ? 'PASS' : 'FAIL'}`), reasonEl);
+  const html = extractHtml(r.output);
+  let frame = null;
+  if (html) {
+    const btnRow = document.createElement('div');
+    btnRow.className = 'row';
+    const openBtn = el('button', 'Open HTML in new tab');
+    openBtn.onclick = () => {
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    };
+    const toggleBtn = el('button', 'Render HTML inline');
+    frame = document.createElement('iframe');
+    frame.className = 'preview';
+    frame.srcdoc = html;
+    frame.hidden = true;
+    toggleBtn.onclick = () => {
+      frame.hidden = !frame.hidden;
+      toggleBtn.textContent = frame.hidden ? 'Render HTML inline' : 'Hide inline HTML';
+    };
+    btnRow.append(openBtn, toggleBtn);
+    d.append(btnRow);
+  }
+  d.append(outDiv);
+  if (frame) d.append(frame);
+}
+
+function updateDetailRuns() {
+  if (!detailContext) return;
+  const container = $('detailRuns');
+  const pager = $('detailPager');
+  if (!container || !pager) return;
+  container.replaceChildren();
+  pager.replaceChildren();
+  const runs = detailContext.runs;
+  const totalPages = Math.max(1, Math.ceil(runs.length / RUNS_PER_PAGE));
+  if (detailPage >= totalPages) detailPage = totalPages - 1;
+  if (detailPage < 0) detailPage = 0;
+  const start = detailPage * RUNS_PER_PAGE;
+  runs.slice(start, start + RUNS_PER_PAGE).forEach((r, i) => renderDetailRun(r, start + i));
+  if (runs.length > RUNS_PER_PAGE) {
+    const prev = el('button', 'Prev');
+    prev.disabled = detailPage === 0;
+    prev.onclick = () => { detailPage--; updateDetailRuns(); };
+    const info = el('span', `Page ${detailPage + 1} / ${totalPages}`);
+    info.style.margin = '0 8px';
+    const next = el('button', 'Next');
+    next.disabled = detailPage === totalPages - 1;
+    next.onclick = () => { detailPage++; updateDetailRuns(); };
+    pager.append(prev, info, next);
+  }
+}
+
 function showDetail(model, task) {
   const d = $('detail');
   const promptDiv = document.createElement('div');
   promptDiv.className = 'md';
   promptDiv.innerHTML = renderMarkdown(task.prompt);
-  d.replaceChildren(el('h1', `${model} / ${task.id}`), el('label', 'Prompt'), promptDiv);
-  ROWS.filter(r => r.model === model && r.task === task.id).forEach(r => {
-    const outDiv = document.createElement('div');
-    outDiv.className = 'md';
-    outDiv.innerHTML = renderMarkdown(r.output || '(empty output)');
-    const reasonEl = document.createElement('div');
-    reasonEl.className = 'reason ' + (r.passed ? 'pass' : 'fail');
-    reasonEl.textContent = r.reason || (r.passed ? 'PASS' : 'FAIL');
-    d.append(el('label', `Run ${r.run + 1}: ${r.passed ? 'PASS' : 'FAIL'}`), reasonEl, outDiv);
-    const html = extractHtml(r.output);
-    if (html) {
-      const btnRow = document.createElement('div');
-      btnRow.className = 'row';
-      const openBtn = el('button', 'Open HTML in new tab');
-      openBtn.onclick = () => {
-        const blob = new Blob([html], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        window.open(url, '_blank');
-        setTimeout(() => URL.revokeObjectURL(url), 60000);
-      };
-      const toggleBtn = el('button', 'Render HTML inline');
-      const frame = document.createElement('iframe');
-      frame.className = 'preview';
-      frame.srcdoc = html;
-      frame.hidden = true;
-      toggleBtn.onclick = () => {
-        frame.hidden = !frame.hidden;
-        toggleBtn.textContent = frame.hidden ? 'Render HTML inline' : 'Hide inline HTML';
-      };
-      btnRow.append(openBtn, toggleBtn);
-      d.append(btnRow, frame);
-    }
-  });
+  const runsContainer = document.createElement('div');
+  runsContainer.id = 'detailRuns';
+  const pager = document.createElement('div');
+  pager.id = 'detailPager';
+  pager.className = 'row';
+  d.replaceChildren(el('h2', `${model} / ${task.id}`), el('label', 'Prompt'), promptDiv, pager, runsContainer);
+  detailContext = { model, task, runs: ROWS.filter(r => r.model === model && r.task === task.id) };
+  detailPage = 0;
+  updateDetailRuns();
   d.hidden = false;
   d.scrollIntoView({ behavior: 'smooth' });
 }
 
-async function loadResults() { ROWS = await api('/api/results'); render(); }
+async function loadResults() {
+  ROWS = await api('/api/results');
+  if (detailContext) {
+    detailContext.runs = ROWS.filter(r => r.model === detailContext.model && r.task === detailContext.task);
+    updateDetailRuns();
+  }
+  render();
+}
 
 async function poll() {
   try {
