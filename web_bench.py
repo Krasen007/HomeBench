@@ -187,6 +187,16 @@ PAGE = r"""<!doctype html>
   th { font-size: 12px; color: var(--muted); font-weight: 600; }
   td.cell { cursor: pointer; font-weight: 600; font-variant-numeric: tabular-nums; }
   td.cell:hover { background: var(--bg); }
+  .md { margin: 6px 0; }
+  .md p { margin: 6px 0; }
+  .md pre { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px;
+            overflow-x: auto; white-space: pre-wrap; word-break: break-word; font-size: 13px; margin: 6px 0; }
+  .md code { font-family: ui-monospace, monospace; font-size: 12px; background: var(--bg);
+             padding: 1px 4px; border-radius: 4px; }
+  .md pre code { background: none; padding: 0; }
+  .md ul, .md ol { margin: 6px 0 6px 20px; }
+  .md h1, .md h2, .md h3, .md h4 { margin: 10px 0 4px; }
+  .md blockquote { border-left: 3px solid var(--border); margin: 6px 0; padding-left: 10px; color: var(--muted); }
   .pass { color: var(--pass); } .fail { color: var(--fail); } .part { color: var(--part); }
   .hint { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
 </style>
@@ -194,7 +204,7 @@ PAGE = r"""<!doctype html>
 <body>
 <main>
   <h1>Mini LLM Bench</h1>
-  <p class="sub">5 tasks against a local llama-server. Run one model at a time and compare below.</p>
+  <p class="sub">6 tasks against a local llama-server. Run one model at a time and compare below.</p>
 
   <section class="card">
     <h2>Run</h2>
@@ -280,11 +290,89 @@ function render() {
   });
 }
 
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function inlineMd(s) {
+  s = escapeHtml(s);
+  s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  return s;
+}
+
+function renderMarkdown(src) {
+  if (src === null || src === undefined) return '';
+  const lines = String(src).split(/\n/);
+  let html = '';
+  let inCode = false;
+  let codeLang = '';
+  let codeLines = [];
+  let inList = false;
+  let listType = '';
+  function closeList() {
+    if (inList) { html += '</' + listType + '>'; inList = false; listType = ''; }
+  }
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const fence = line.match(/^```(\w*)\s*$/);
+    if (fence) {
+      if (!inCode) {
+        closeList();
+        inCode = true;
+        codeLang = fence[1] || '';
+        codeLines = [];
+      } else {
+        html += '<pre><code' + (codeLang ? ' class="language-' + escapeHtml(codeLang) + '"' : '') + '>' +
+                escapeHtml(codeLines.join('\n')) + '</code></pre>';
+        inCode = false;
+      }
+      continue;
+    }
+    if (inCode) { codeLines.push(line); continue; }
+    const heading = line.match(/^(#{1,6})\s+(.*)$/);
+    if (heading) {
+      closeList();
+      const lvl = heading[1].length;
+      html += '<h' + lvl + '>' + inlineMd(heading[2]) + '</h' + lvl + '>';
+      continue;
+    }
+    const bq = line.match(/^>\s?(.*)$/);
+    if (bq) { closeList(); html += '<blockquote>' + inlineMd(bq[1]) + '</blockquote>'; continue; }
+    const ul = line.match(/^[-*+]\s+(.*)$/);
+    if (ul) {
+      if (!inList || listType !== 'ul') { closeList(); html += '<ul>'; inList = true; listType = 'ul'; }
+      html += '<li>' + inlineMd(ul[1]) + '</li>';
+      continue;
+    }
+    const ol = line.match(/^\d+\.\s+(.*)$/);
+    if (ol) {
+      if (!inList || listType !== 'ol') { closeList(); html += '<ol>'; inList = true; listType = 'ol'; }
+      html += '<li>' + inlineMd(ol[1]) + '</li>';
+      continue;
+    }
+    if (line.trim() === '') { closeList(); continue; }
+    closeList();
+    html += '<p>' + inlineMd(line) + '</p>';
+  }
+  if (inCode) html += '<pre><code>' + escapeHtml(codeLines.join('\n')) + '</code></pre>';
+  closeList();
+  return html;
+}
+
 function showDetail(model, task) {
   const d = $('detail');
-  d.replaceChildren(el('h2', `${model} / ${task.id}`), el('label', 'Prompt'), el('pre', task.prompt));
+  const promptDiv = document.createElement('div');
+  promptDiv.className = 'md';
+  promptDiv.innerHTML = renderMarkdown(task.prompt);
+  d.replaceChildren(el('h2', `${model} / ${task.id}`), el('label', 'Prompt'), promptDiv);
   ROWS.filter(r => r.model === model && r.task === task.id).forEach(r => {
-    d.append(el('label', `Run ${r.run + 1}: ${r.passed ? 'PASS' : 'FAIL'}`), el('pre', r.output || '(empty output)'));
+    const outDiv = document.createElement('div');
+    outDiv.className = 'md';
+    outDiv.innerHTML = renderMarkdown(r.output || '(empty output)');
+    d.append(el('label', `Run ${r.run + 1}: ${r.passed ? 'PASS' : 'FAIL'}`), outDiv);
   });
   d.hidden = false;
   d.scrollIntoView({ behavior: 'smooth' });
