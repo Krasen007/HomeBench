@@ -95,7 +95,7 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                 row = {
                     "batch": batch, "model": name, "task": task["id"],
                     "run": run, "passed": passed, "reason": reason,
-                    "output": output, "note": note,
+                    "output": output, "note": note, "temperature": temperature,
                 }
                 out.write(json.dumps(row) + "\n")
                 out.flush()
@@ -158,6 +158,29 @@ def unique_model_name(name, existing):
     while f"{name} ({i})" in existing:
         i += 1
     return f"{name} ({i})"
+
+
+def rename_model(path, old_name, new_name):
+    """Rename old_name to new_name in every row of the JSONL results file.
+
+    Returns the final (possibly auto-incremented) name written to the rows.
+    """
+    old_name = (old_name or "").strip()
+    new_name = (new_name or "").strip()
+    if not old_name or not new_name:
+        raise ValueError("old and new model name are required")
+    rows = load_rows(path)
+    if not any(r.get("model") == old_name for r in rows):
+        raise KeyError(f"model {old_name!r} not found")
+    existing = {r.get("model") for r in rows if r.get("model") != old_name}
+    final = unique_model_name(new_name, existing)
+    for r in rows:
+        if r.get("model") == old_name:
+            r["model"] = final
+    with open(path, "w", encoding="utf-8") as f:
+        for r in rows:
+            f.write(json.dumps(r) + "\n")
+    return final
 
 
 # --------------------------------------------------------------------------
@@ -289,6 +312,17 @@ class Handler(BaseHTTPRequestHandler):
                 state.update({"running": False, "model": "", "done": 0,
                               "total": 0, "log": [], "error": None})
             self.send({"ok": True})
+            return
+        if path == "/api/rename_model":
+            old_name = body.get("old_name") or ""
+            new_name = body.get("new_name") or ""
+            with lock:
+                try:
+                    final = rename_model(WEB_OUT, old_name, new_name)
+                except (ValueError, KeyError) as e:
+                    self.send({"error": str(e)}, code=400)
+                    return
+            self.send({"ok": True, "name": final})
             return
         self.send({"error": "not found"}, code=404)
 

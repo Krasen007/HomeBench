@@ -128,3 +128,5 @@ Markdown wasn't masking format. Now that the output parser no longer corrupts
 ">" in code/HTML, renderDetailRun uses outDiv.innerHTML = renderMarkdown(...)
 again so code blocks format correctly. Raw HTML game output is still available
 via extractHtml() -> iframe preview ("Render HTML inline" / "Open HTML in new tab").
+1. make the next and prev buttons go trough all the tests, so if each test is 3/3 after you view the 3 pages, the next button should move to the next test, so from math it will go to logic
+2. add option to edit the name of the model from the results page, and add colum showing the temperature

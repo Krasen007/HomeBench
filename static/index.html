@@ -390,13 +390,20 @@
 
       const head = el('tr');
       head.append(el('th', 'model'));
+      head.append(el('th', 'temp'));
       TASKS.forEach(t => head.append(el('th', t.id)));
       head.append(el('th', 'total'));
       table.append(head);
 
       models.forEach(m => {
         const tr = el('tr');
-        tr.append(el('td', m));
+        const modelTd = el('td', m, 'cell');
+        modelTd.title = 'Click to rename this model';
+        modelTd.onclick = () => editModelName(modelTd, m);
+        tr.append(modelTd);
+        const modelRows = ROWS.filter(r => r.model === m);
+        const temps = [...new Set(modelRows.map(r => r.temperature).filter(v => v !== undefined))];
+        tr.append(el('td', temps.length ? String(temps[0]) : '-', 'cell'));
         let tp = 0, tt = 0;
         TASKS.forEach(t => {
           const rs = ROWS.filter(r => r.model === m && r.task === t.id);
@@ -409,6 +416,33 @@
         tr.append(el('td', `${tp}/${tt}`, 'cell ' + (tt ? scoreClass(tp, tt) : '')));
         table.append(tr);
       });
+    }
+
+    async function editModelName(cell, oldName) {
+      cell.replaceChildren();
+      const input = el('input');
+      input.value = oldName;
+      const save = el('button', 'Save');
+      const cancel = el('button', 'Cancel');
+      cell.append(input, save, cancel);
+      input.focus();
+      const finish = async (newName) => {
+        if (!newName || newName === oldName) { render(); return; }
+        const res = await api('/api/rename_model', { old_name: oldName, new_name });
+        if (res.error) { alert(res.error); render(); return; }
+        if (detailContext && detailContext.model === oldName) {
+          detailContext = null;
+          $('detail').hidden = true;
+        }
+        loadResults();
+      };
+      save.onclick = (e) => { e.stopPropagation(); finish(input.value.trim()); };
+      cancel.onclick = (e) => { e.stopPropagation(); render(); };
+      input.onclick = (e) => e.stopPropagation();
+      input.onkeydown = (e) => {
+        if (e.key === 'Enter') save.onclick(e);
+        if (e.key === 'Escape') cancel.onclick(e);
+      };
     }
 
     function escapeHtml(s) {
@@ -543,37 +577,59 @@
       const container = $('detailRuns');
       const pager = $('detailPager');
       if (!container || !pager) return;
-      const runs = detailContext.runs;
-      const totalPages = Math.max(1, Math.ceil(runs.length / RUNS_PER_PAGE));
+      // One page per run, walking all tasks of this model in task order:
+      // math run 1 … N, then logic run 1 … N, etc. Next/Prev move across tests.
+      const runs = ROWS.filter(r => r.model === detailContext.model);
+      const byTask = new Map();
+      runs.forEach(r => {
+        if (!byTask.has(r.task)) byTask.set(r.task, []);
+        byTask.get(r.task).push(r);
+      });
+      byTask.forEach(rs => rs.sort((a, b) => a.run - b.run));
+      const pages = [];
+      TASKS.forEach(t => {
+        (byTask.get(t.id) || []).forEach((r, i) => pages.push({ task: t, runIndex: i, run: r }));
+      });
+      const totalPages = Math.max(1, pages.length);
       if (detailPage >= totalPages) detailPage = totalPages - 1;
       if (detailPage < 0) detailPage = 0;
-      const start = detailPage * RUNS_PER_PAGE;
-      const visible = runs.slice(start, start + RUNS_PER_PAGE);
-      // Rebuild only when the visible runs change: the poll during a run must not
+      const current = pages[detailPage];
+
+      // Re-render the header and prompt when we move to another task.
+      const taskId = current ? current.task.id : detailContext.taskId;
+      if (taskId !== detailContext.taskId) {
+        detailContext.taskId = taskId;
+        const t = TASKS.find(t => t.id === taskId);
+        detailContext.header.textContent = `${detailContext.model} / ${taskId}`;
+        detailContext.promptDiv.innerHTML = t ? renderMarkdown(t.prompt) : '';
+      }
+
+      // Rebuild only when the visible run changes: the poll during a run must not
       // wipe the detail view (or close an HTML preview opened by the user).
       const runsSig = [detailContext.model, detailContext.taskId, detailPage,
-      visible.map(r => r.batch + ':' + r.run).join(',')].join('|');
+      current ? (current.run.batch + ':' + current.run.run) : ''].join('|');
       if (runsSig !== detailRunsSignature) {
         detailRunsSignature = runsSig;
         container.replaceChildren();
-        if (!visible.length) {
-          container.append(el('p', 'No results yet for this task. It appears here as soon as the run finishes it.', 'sub'));
+        if (!current) {
+          container.append(el('p', 'No results yet for this model.', 'sub'));
+        } else {
+          renderDetailRun(current.run, current.runIndex);
         }
-        visible.forEach((r, i) => renderDetailRun(r, start + i));
       }
-      const pagerSig = [detailContext.model, detailContext.taskId, detailPage, runs.length].join('|');
+      const pagerSig = [detailContext.model, detailContext.taskId, detailPage, pages.length].join('|');
       if (pagerSig !== detailPagerSignature) {
         detailPagerSignature = pagerSig;
         pager.replaceChildren();
-        if (runs.length > RUNS_PER_PAGE) {
+        if (pages.length > 1) {
           const prev = el('button', 'Prev');
           prev.disabled = detailPage === 0;
-          prev.onclick = () => { detailPage--; updateDetailRuns(); };
+          prev.onclick = (e) => { e.stopPropagation(); detailPage--; updateDetailRuns(); };
           const info = el('span', `Page ${detailPage + 1} / ${totalPages}`);
           info.style.margin = '0 8px';
           const next = el('button', 'Next');
           next.disabled = detailPage === totalPages - 1;
-          next.onclick = () => { detailPage++; updateDetailRuns(); };
+          next.onclick = (e) => { e.stopPropagation(); detailPage++; updateDetailRuns(); };
           pager.append(prev, info, next);
         }
       }
@@ -581,6 +637,7 @@
 
     function showDetail(model, task) {
       const d = $('detail');
+      const header = el('h2', `${model} / ${task.id}`);
       const promptDiv = document.createElement('div');
       promptDiv.className = 'md';
       promptDiv.innerHTML = renderMarkdown(task.prompt);
@@ -589,8 +646,8 @@
       const pager = document.createElement('div');
       pager.id = 'detailPager';
       pager.className = 'row';
-      d.replaceChildren(el('h2', `${model} / ${task.id}`), el('label', 'Prompt'), promptDiv, pager, runsContainer);
-      detailContext = { model, taskId: task.id, runs: ROWS.filter(r => r.model === model && r.task === task.id) };
+      d.replaceChildren(header, el('label', 'Prompt'), promptDiv, pager, runsContainer);
+      detailContext = { model, taskId: task.id, header, promptDiv };
       detailPage = 0;
       detailRunsSignature = detailPagerSignature = '';
       updateDetailRuns();
@@ -601,8 +658,12 @@
     async function loadResults() {
       ROWS = await api('/api/results');
       if (detailContext) {
-        detailContext.runs = ROWS.filter(r => r.model === detailContext.model && r.task === detailContext.taskId);
-        updateDetailRuns();
+        if (!ROWS.some(r => r.model === detailContext.model)) {
+          detailContext = null;
+          $('detail').hidden = true;
+        } else {
+          updateDetailRuns();
+        }
       }
       render();
     }
