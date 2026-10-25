@@ -141,6 +141,10 @@ def unique_model_name(name, existing):
         return name
     if name not in existing:
         return name
+    i = 1
+    while f"{name} ({i})" in existing:
+        i += 1
+    return f"{name} ({i})"
 
 
 # --------------------------------------------------------------------------

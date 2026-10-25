@@ -53,3 +53,5 @@ FAIL: expected string or bytes-like object, got 'NoneType'
 
 Exception occurred during processing of request from ('127.0.0.1', 4528)
 this error happens when i try to export the results
+
+the auto-detected name of model is not working
