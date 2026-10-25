@@ -2,6 +2,8 @@ import re
 
 
 def _instructions_status(text):
+    if not isinstance(text, str):
+        return False, "FAIL: no model output received"
     lines = [l.strip() for l in text.strip().splitlines() if l.strip()]
     if len(lines) != 3:
         return False, "FAIL: expected exactly 3 non-empty lines, got %d" % len(lines)

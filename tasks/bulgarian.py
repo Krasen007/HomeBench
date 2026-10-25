@@ -1,4 +1,6 @@
 def _bg_article_status(text):
+    if not isinstance(text, str):
+        return False, "FAIL: no model output received"
     low = " ".join(text.split()).casefold()
     expected_tokens = ["директора", "лекаря", "ученика", "влакът"]
     missing = [t for t in expected_tokens if t not in low]

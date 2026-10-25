@@ -6,6 +6,8 @@ import tempfile
 
 
 def _code_status(text):
+    if not isinstance(text, str):
+        return False, "FAIL: no model output received"
     m = re.search(r"```(?:python)?\n(.*?)```", text, re.S)
     code = m.group(1) if m else text
     tests = '''

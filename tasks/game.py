@@ -105,6 +105,8 @@ def _game_runtime_status(html):
             pass
 """
 def _game_status(text):
+    if not isinstance(text, str):
+        return False, "FAIL: no model output received"
     m = re.search(r"```(?:html|htm)?\s*\n(.*?)```", text, re.S | re.I)
     html = m.group(1).strip() if m else text.strip()
     low = html.lower()

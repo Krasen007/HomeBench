@@ -2,6 +2,8 @@ import re
 
 
 def _logic_status(text):
+    if not isinstance(text, str):
+        return False, "FAIL: no model output received"
     names = re.findall(r"answer\s*:\s*\**\s*(\w+)", text, re.I)
     if not names:
         return False, "FAIL: no 'Answer: <name>' found"

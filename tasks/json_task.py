@@ -2,6 +2,8 @@ import json
 
 
 def _json_status(text):
+    if not isinstance(text, str):
+        return False, "FAIL: no model output received"
     start, end = text.find("{"), text.rfind("}")
     if start == -1 or end <= start:
         return False, "FAIL: no JSON object found"

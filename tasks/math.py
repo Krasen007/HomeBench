@@ -2,6 +2,8 @@ import re
 
 
 def _math_status(text):
+    if not isinstance(text, str):
+        return False, "FAIL: no model output received"
     nums = re.findall(r"answer\s*:\s*\$?\s*(-?\d+(?:\.\d+)?)", text, re.I)
     if not nums:
         return False, "FAIL: no 'Answer: <number>' found"
