@@ -28,39 +28,73 @@ import urllib.request
 # Scoring functions: each takes the model's text output, returns True/False
 # --------------------------------------------------------------------------
 
-def check_math(text):
+def _math_status(text):
     # 18 pencils = 6 groups of 3 -> $7.20; change from $10 = $2.80
     nums = re.findall(r"answer\s*:\s*\$?\s*(-?\d+(?:\.\d+)?)", text, re.I)
-    return bool(nums) and abs(float(nums[-1]) - 2.80) < 0.005
+    if not nums:
+        return False, "FAIL: no 'Answer: <number>' found"
+    got = float(nums[-1])
+    if abs(got - 2.80) < 0.005:
+        return True, "PASS: answer is 2.80"
+    return False, "FAIL: expected 2.80, got %g" % got
+
+
+def check_math(text):
+    return _math_status(text)[0]
+
+
+def explain_math(text):
+    return _math_status(text)[1]
+
+
+def _logic_status(text):
+    # Bob must own the cat, so Alice owns the fish
+    names = re.findall(r"answer\s*:\s*\**\s*(\w+)", text, re.I)
+    if not names:
+        return False, "FAIL: no 'Answer: <name>' found"
+    got = names[-1]
+    if got.lower() == "alice":
+        return True, "PASS: answer is Alice"
+    return False, "FAIL: expected Alice, got %s" % got
 
 
 def check_logic(text):
-    # Bob must own the cat, so Alice owns the fish
-    names = re.findall(r"answer\s*:\s*\**\s*(\w+)", text, re.I)
-    return bool(names) and names[-1].lower() == "alice"
+    return _logic_status(text)[0]
+
+
+def explain_logic(text):
+    return _logic_status(text)[1]
+
+
+def _instructions_status(text):
+    lines = [l.strip() for l in text.strip().splitlines() if l.strip()]
+    if len(lines) != 3:
+        return False, "FAIL: expected exactly 3 non-empty lines, got %d" % len(lines)
+    for i, line in enumerate(lines, 1):
+        if not re.match(r"^[-*\u2022]\s+", line):
+            return False, "FAIL: line %d does not start with '- '" % i
+        words = re.sub(r"^[-*\u2022]\s+", "", line).split()
+        if not 0 < len(words) < 8:
+            return False, "FAIL: line %d has %d words (need 1-7)" % (i, len(words))
+    return True, "PASS: 3 bullets, each '- ' prefix, 1-7 words"
 
 
 def check_instructions(text):
-    lines = [l.strip() for l in text.strip().splitlines() if l.strip()]
-    if len(lines) != 3:
-        return False
-    for line in lines:
-        if not re.match(r"^[-*\u2022]\s+", line):
-            return False
-        words = re.sub(r"^[-*\u2022]\s+", "", line).split()
-        if not 0 < len(words) < 8:
-            return False
-    return True
+    return _instructions_status(text)[0]
 
 
-def check_json(text):
+def explain_instructions(text):
+    return _instructions_status(text)[1]
+
+
+def _json_status(text):
     start, end = text.find("{"), text.rfind("}")
     if start == -1 or end <= start:
-        return False
+        return False, "FAIL: no JSON object found"
     try:
         data = json.loads(text[start:end + 1])
-    except json.JSONDecodeError:
-        return False
+    except json.JSONDecodeError as e:
+        return False, "FAIL: invalid JSON (%s)" % e
     expected = {
         "name": "Maria Lopez",
         "age": 34,
@@ -68,12 +102,24 @@ def check_json(text):
         "start_date": "2021-03-15",
         "city": "Valencia",
     }
-    return all(
-        str(data.get(k, "")).strip() == str(v) for k, v in expected.items()
-    )
+    mismatches = []
+    for k, v in expected.items():
+        if str(data.get(k, "")).strip() != str(v):
+            mismatches.append("%s: expected %r, got %r" % (k, v, data.get(k)))
+    if mismatches:
+        return False, "FAIL: " + "; ".join(mismatches)
+    return True, "PASS: all fields match"
 
 
-def check_code(text):
+def check_json(text):
+    return _json_status(text)[0]
+
+
+def explain_json(text):
+    return _json_status(text)[1]
+
+
+def _code_status(text):
     m = re.search(r"```(?:python)?\n(.*?)```", text, re.S)
     code = m.group(1) if m else text
     tests = '''
@@ -89,12 +135,30 @@ for s, expected in cases:
         # NOTE: this executes model-generated code. Fine for a demo of simple
         # tasks, but run it in a container/VM if you extend the benchmark.
         r = subprocess.run([sys.executable, path], capture_output=True, timeout=10)
-        return r.returncode == 0
+        if r.returncode == 0:
+            return True, "PASS: all palindrome test cases passed"
+        err = (r.stderr or r.stdout or b"").decode(errors="replace").strip()
+        if err:
+            return False, "FAIL: tests failed: " + err.splitlines()[-1]
+        return False, "FAIL: tests failed (non-zero exit)"
     except subprocess.TimeoutExpired:
-        return False
+        return False, "FAIL: execution timed out"
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
 
 
-def check_game(text):
+def check_code(text):
+    return _code_status(text)[0]
+
+
+def explain_code(text):
+    return _code_status(text)[1]
+
+
+def _game_status(text):
     # Extract the HTML document from the model output (code block or raw).
     m = re.search(r"```(?:html|htm)?\s*\n(.*?)```", text, re.S | re.I)
     html = m.group(1).strip() if m else text.strip()
@@ -102,31 +166,31 @@ def check_game(text):
 
     # Must be an HTML document.
     if "<html" not in low and "<!doctype" not in low and "<canvas" not in low:
-        return False
+        return False, "FAIL: not an HTML document"
 
     # Core elements / content from the design document.
     for token in ("canvas", "car", "coin", "yellow", "red", "green", "grass",
                   "play", "200"):
         if token not in low:
-            return False
+            return False, "FAIL: missing required element/content '%s'" % token
 
     # Sound: generated audio for pickups.
     if not any(s in low for s in ("audiocontext", "oscillator", "audio", "sound",
                                   "beep", "tone", "webaudio")):
-        return False
+        return False, "FAIL: no generated sound (audio) found"
 
     # Input: mouse or touch control.
     if not any(s in low for s in ("mousemove", "touchmove", "pointermove",
                                   "mousedown", "touchstart", "pointerdown")):
-        return False
+        return False, "FAIL: no mouse/touch input handler found"
 
     # Spawning logic present.
     if not any(s in low for s in ("spawn", "setinterval", "settimeout")):
-        return False
+        return False, "FAIL: no coin spawning logic found"
 
     # Single self-contained file: no external script/style dependencies.
     if re.search(r"<script[^>]*\bsrc\s*=", html, re.I):
-        return False
+        return False, "FAIL: uses external script (src=) - not a single file"
 
     # JavaScript syntax check on inline scripts.
     scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.S | re.I)
@@ -139,16 +203,26 @@ def check_game(text):
             r = subprocess.run(["node", "--check", path], capture_output=True,
                                timeout=10)
             if r.returncode != 0:
-                return False
-        except Exception:
-            return False
+                err = (r.stderr or b"").decode(errors="replace").strip()
+                msg = err.splitlines()[-1] if err else "syntax error"
+                return False, "FAIL: JS syntax error: " + msg
+        except Exception as e:
+            return False, "FAIL: could not check JS (%s)" % e
         finally:
             try:
                 os.remove(path)
             except OSError:
                 pass
 
-    return True
+    return True, "PASS: valid single-file HTML game with all required elements"
+
+
+def check_game(text):
+    return _game_status(text)[0]
+
+
+def explain_game(text):
+    return _game_status(text)[1]
 
 
 # --------------------------------------------------------------------------
@@ -165,6 +239,7 @@ TASKS = [
             "'Answer: <number>'."
         ),
         "check": check_math,
+        "explain": explain_math,
     },
     {
         "id": "logic",
@@ -176,6 +251,7 @@ TASKS = [
             "'Answer: <name>'."
         ),
         "check": check_logic,
+        "explain": explain_logic,
     },
     {
         "id": "instructions",
@@ -185,6 +261,7 @@ TASKS = [
             "Output nothing except the 3 bullets."
         ),
         "check": check_instructions,
+        "explain": explain_instructions,
     },
     {
         "id": "json",
@@ -196,6 +273,7 @@ TASKS = [
             "March 15, 2021. She currently lives in Valencia."
         ),
         "check": check_json,
+        "explain": explain_json,
     },
     {
         "id": "code",
@@ -206,6 +284,7 @@ TASKS = [
             "single ```python block."
         ),
         "check": check_code,
+        "explain": explain_code,
     },
     {
         "id": "game",
@@ -244,6 +323,7 @@ TASKS = [
             "visual style, and the generated sounds."
         ),
         "check": check_game,
+        "explain": explain_game,
     },
 ]
 
@@ -336,12 +416,13 @@ def main():
                         output = chat(url, task["prompt"], args.temperature,
                                       args.max_tokens, args.timeout)
                         passed = bool(task["check"](output))
+                        reason = task.get("explain", lambda x: "")(output)
                     except Exception as e:  # server down, timeout, bad response...
-                        output, passed = f"[ERROR] {e}", False
-                    print(f"  {task['id']:<13} run {run + 1}: {'PASS' if passed else 'FAIL'}")
+                        output, passed, reason = f"[ERROR] {e}", False, "FAIL: " + str(e)
+                    print(f"  {task['id']:<13} run {run + 1}: {'PASS' if passed else 'FAIL'} - {reason}")
                     out.write(json.dumps({
                         "batch": batch, "model": name, "task": task["id"],
-                        "run": run, "passed": passed, "output": output,
+                        "run": run, "passed": passed, "reason": reason, "output": output,
                     }) + "\n")
                     out.flush()
 

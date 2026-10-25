@@ -4,3 +4,5 @@
 i will use llama.cpp with small local models
 in @/mini_bench.py implement F:\AI\repos\HomeBench\GameDesignDocument.md as a test in the suite of tasks
 make the web interface render correctly markdown
+for each pass or fail show the passing or failing condition in the answer
+when i run the same model multiple times Model name (label for the table) should not replace the last results, add automatic increments, also it should be possible to infer the name of the model from llama.cpp

@@ -42,11 +42,12 @@ def run_benchmark(p):
                         output = chat(p["url"], task["prompt"], p["temperature"],
                                       p["max_tokens"], 300)
                         passed = bool(task["check"](output))
+                        reason = task.get("explain", lambda x: "")(output)
                     except Exception as e:  # server down, timeout, bad response...
-                        output, passed = f"[ERROR] {e}", False
+                        output, passed, reason = f"[ERROR] {e}", False, "FAIL: " + str(e)
                     out.write(json.dumps({
                         "batch": batch, "model": p["name"], "task": task["id"],
-                        "run": run, "passed": passed, "output": output,
+                        "run": run, "passed": passed, "reason": reason, "output": output,
                     }) + "\n")
                     out.flush()
                     with lock:
@@ -197,6 +198,7 @@ PAGE = r"""<!doctype html>
   .md ul, .md ol { margin: 6px 0 6px 20px; }
   .md h1, .md h2, .md h3, .md h4 { margin: 10px 0 4px; }
   .md blockquote { border-left: 3px solid var(--border); margin: 6px 0; padding-left: 10px; color: var(--muted); }
+  .reason { font-size: 13px; font-weight: 600; margin: 2px 0 8px; }
   .pass { color: var(--pass); } .fail { color: var(--fail); } .part { color: var(--part); }
   .hint { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
 </style>
@@ -372,7 +374,10 @@ function showDetail(model, task) {
     const outDiv = document.createElement('div');
     outDiv.className = 'md';
     outDiv.innerHTML = renderMarkdown(r.output || '(empty output)');
-    d.append(el('label', `Run ${r.run + 1}: ${r.passed ? 'PASS' : 'FAIL'}`), outDiv);
+    const reasonEl = document.createElement('div');
+    reasonEl.className = 'reason ' + (r.passed ? 'pass' : 'fail');
+    reasonEl.textContent = r.reason || (r.passed ? 'PASS' : 'FAIL');
+    d.append(el('label', `Run ${r.run + 1}: ${r.passed ? 'PASS' : 'FAIL'}`), reasonEl, outDiv);
   });
   d.hidden = false;
   d.scrollIntoView({ behavior: 'smooth' });
