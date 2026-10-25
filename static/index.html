@@ -428,7 +428,7 @@
       input.focus();
       const finish = async (newName) => {
         if (!newName || newName === oldName) { render(); return; }
-        const res = await api('/api/rename_model', { old_name: oldName, new_name });
+        const res = await api('/api/rename_model', { old_name: oldName, new_name: newName });
         if (res.error) { alert(res.error); render(); return; }
         if (detailContext && detailContext.model === oldName) {
           detailContext = null;
@@ -572,14 +572,8 @@
       d.append(outDiv);
     }
 
-    function updateDetailRuns() {
-      if (!detailContext) return;
-      const container = $('detailRuns');
-      const pager = $('detailPager');
-      if (!container || !pager) return;
-      // One page per run, walking all tasks of this model in task order:
-      // math run 1 … N, then logic run 1 … N, etc. Next/Prev move across tests.
-      const runs = ROWS.filter(r => r.model === detailContext.model);
+    function buildPages(model) {
+      const runs = ROWS.filter(r => r.model === model);
       const byTask = new Map();
       runs.forEach(r => {
         if (!byTask.has(r.task)) byTask.set(r.task, []);
@@ -590,6 +584,17 @@
       TASKS.forEach(t => {
         (byTask.get(t.id) || []).forEach((r, i) => pages.push({ task: t, runIndex: i, run: r }));
       });
+      return pages;
+    }
+
+    function updateDetailRuns() {
+      if (!detailContext) return;
+      const container = $('detailRuns');
+      const pager = $('detailPager');
+      if (!container || !pager) return;
+      // One page per run, walking all tasks of this model in task order:
+      // math run 1 … N, then logic run 1 … N, etc. Next/Prev move across tests.
+      const pages = buildPages(detailContext.model);
       const totalPages = Math.max(1, pages.length);
       if (detailPage >= totalPages) detailPage = totalPages - 1;
       if (detailPage < 0) detailPage = 0;
@@ -648,7 +653,10 @@
       pager.className = 'row';
       d.replaceChildren(header, el('label', 'Prompt'), promptDiv, pager, runsContainer);
       detailContext = { model, taskId: task.id, header, promptDiv };
-      detailPage = 0;
+      // Start pager on the first run page of the clicked task, not page 0 of all tasks.
+      const pages = buildPages(model);
+      detailPage = pages.findIndex(p => p.task.id === task.id);
+      if (detailPage < 0) detailPage = 0;
       detailRunsSignature = detailPagerSignature = '';
       updateDetailRuns();
       d.hidden = false;
