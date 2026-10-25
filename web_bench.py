@@ -50,6 +50,7 @@ def run_benchmark(p):
                     out.write(json.dumps({
                         "batch": batch, "model": p["name"], "task": task["id"],
                         "run": run, "passed": passed, "reason": reason, "output": output,
+                        "note": p.get("note", ""),
                     }) + "\n")
                     out.flush()
                     with lock:
@@ -136,6 +137,7 @@ class Handler(BaseHTTPRequestHandler):
                 runs = int(body["runs"])
                 temperature = float(body["temperature"])
                 max_tokens = int(body["max_tokens"])
+                note = str(body.get("note", "")).strip()
             except (KeyError, ValueError, TypeError):
                 return self.send({"error": "invalid parameters"}, 400)
             if not url.startswith("http"):
@@ -155,6 +157,7 @@ class Handler(BaseHTTPRequestHandler):
                 "runs": runs,
                 "temperature": temperature,
                 "max_tokens": max_tokens,
+                "note": note,
             }
             with lock:
                 if state["running"]:
@@ -226,6 +229,7 @@ PAGE = r"""<!doctype html>
   .md blockquote { border-left: 3px solid var(--border); margin: 6px 0; padding-left: 10px; color: var(--muted); }
   .reason { font-size: 13px; font-weight: 600; margin: 2px 0 8px; }
   .preview { width: 100%; height: 420px; border: 1px solid var(--border); border-radius: 8px; margin: 6px 0 12px; background: #fff; }
+  .note { font-size: 13px; color: var(--muted); font-style: italic; margin: 2px 0 8px; white-space: pre-wrap; }
   .pass { color: var(--pass); } .fail { color: var(--fail); } .part { color: var(--part); }
   .hint { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
 </style>
@@ -249,6 +253,8 @@ PAGE = r"""<!doctype html>
            <input id="temp" type="number" min="0" max="2" step="0.1" value="0"></div>
       <div><label for="maxtok">Max tokens</label>
            <input id="maxtok" type="number" min="64" step="64" value="8192"></div>
+      <div><label for="note">Notes for this run</label>
+           <textarea id="note" rows="2" placeholder="optional notes saved with results"></textarea></div>
     </div>
     <div class="row">
       <button id="run" class="primary">Run benchmark</button>
@@ -411,6 +417,10 @@ function renderDetailRun(r, index) {
   reasonEl.className = 'reason ' + (r.passed ? 'pass' : 'fail');
   reasonEl.textContent = r.reason || (r.passed ? 'PASS' : 'FAIL');
   d.append(el('label', `Run ${index + 1}: ${r.passed ? 'PASS' : 'FAIL'}`), reasonEl);
+  if (r.note) {
+    const noteEl = el('div', 'Note: ' + r.note, 'note');
+    d.append(noteEl);
+  }
   const html = extractHtml(r.output);
   let frame = null;
   if (html) {
@@ -519,7 +529,8 @@ $('detect').onclick = async () => {
 $('run').onclick = async () => {
   const res = await api('/api/run', {
     name: $('name').value, url: $('url').value, runs: $('runs').value,
-    temperature: $('temp').value, max_tokens: $('maxtok').value
+    temperature: $('temp').value, max_tokens: $('maxtok').value,
+    note: $('note').value
   });
   if (res.error) alert(res.error);
   poll();

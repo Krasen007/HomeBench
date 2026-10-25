@@ -16,3 +16,4 @@ one of the current tasks is to create a single html application, i want to be ab
 
 in the game task, there should be more checks that detirmine if its a pass, the game should not throw errors and be playable
 
+i have made it to show pages for every run, also can you move the next prev buttons at the top, also move the render inline and open html in new tab above the code
