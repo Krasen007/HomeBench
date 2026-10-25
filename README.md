@@ -9,6 +9,10 @@ The application uses Python's standard library and has no Python package
 dependencies. Benchmark requests use llama.cpp's OpenAI-compatible chat
 completions endpoint.
 
+## Screenshot
+
+![HomeBench benchmark interface showing run settings and model results](screenshots/homebench.png)
+
 ## What it tests
 
 The benchmark includes seven tasks:

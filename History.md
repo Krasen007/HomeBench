@@ -140,3 +140,5 @@ Review: Make the model rename control keyboard-accessible with Enter and Space w
 Review: Keep the mocked chat active for the full run_benchmark call in the temperature-column test. See tests/test_history_33_temperature_test_mock_scope.py.
 
 update readme to be more descripitve and add how to guide
+
+add as image screeenshot in the readme
