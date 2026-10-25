@@ -27,3 +27,7 @@ add another task to check bulgarian
 Правилно: Отидохме при лекаря. (След предлози като при, в, на, с, за винаги се използва кратък член).
 Грешно: Извикаха ученикът в кабинета. ❌
 Правилно: Извикаха ученика в кабинета.
+
+extract all tasks and checks into separate files into a new folder
+
+there is a bug, when i try to view some of the results in the web view the results show for a moment and then hide, this happens when the benchmark is running, however i want to be able to view the results in real time

@@ -280,6 +280,7 @@ PAGE = r"""<!doctype html>
 const $ = id => document.getElementById(id);
 let TASKS = [], ROWS = [], wasRunning = false;
 let detailContext = null, detailPage = 0;
+let detailRunsSignature = '', detailPagerSignature = '';
 const RUNS_PER_PAGE = 1;
 
 function el(tag, text, cls) {
@@ -401,9 +402,9 @@ function renderMarkdown(src) {
 }
 
 function extractHtml(src) {
-  const m = String(src || '').match(/```html\\s*([\\s\\S]*?)```/i);
+  const m = String(src || '').match(/```html\s*([\s\S]*?)```/i);
   if (m) return m[1].trim();
-  if (/<html[\\s>]/i.test(src) || /<!DOCTYPE\\s+html/i.test(src)) return String(src).trim();
+  if (/<html[\s>]/i.test(src) || /<!DOCTYPE\s+html/i.test(src)) return String(src).trim();
   return null;
 }
 
@@ -454,24 +455,39 @@ function updateDetailRuns() {
   const container = $('detailRuns');
   const pager = $('detailPager');
   if (!container || !pager) return;
-  container.replaceChildren();
-  pager.replaceChildren();
   const runs = detailContext.runs;
   const totalPages = Math.max(1, Math.ceil(runs.length / RUNS_PER_PAGE));
   if (detailPage >= totalPages) detailPage = totalPages - 1;
   if (detailPage < 0) detailPage = 0;
   const start = detailPage * RUNS_PER_PAGE;
-  runs.slice(start, start + RUNS_PER_PAGE).forEach((r, i) => renderDetailRun(r, start + i));
-  if (runs.length > RUNS_PER_PAGE) {
-    const prev = el('button', 'Prev');
-    prev.disabled = detailPage === 0;
-    prev.onclick = () => { detailPage--; updateDetailRuns(); };
-    const info = el('span', `Page ${detailPage + 1} / ${totalPages}`);
-    info.style.margin = '0 8px';
-    const next = el('button', 'Next');
-    next.disabled = detailPage === totalPages - 1;
-    next.onclick = () => { detailPage++; updateDetailRuns(); };
-    pager.append(prev, info, next);
+  const visible = runs.slice(start, start + RUNS_PER_PAGE);
+  // Rebuild only when the visible runs change: the poll during a run must not
+  // wipe the detail view (or close an HTML preview opened by the user).
+  const runsSig = [detailContext.model, detailContext.taskId, detailPage,
+                   visible.map(r => r.batch + ':' + r.run).join(',')].join('|');
+  if (runsSig !== detailRunsSignature) {
+    detailRunsSignature = runsSig;
+    container.replaceChildren();
+    if (!visible.length) {
+      container.append(el('p', 'No results yet for this task. It appears here as soon as the run finishes it.', 'sub'));
+    }
+    visible.forEach((r, i) => renderDetailRun(r, start + i));
+  }
+  const pagerSig = [detailContext.model, detailContext.taskId, detailPage, runs.length].join('|');
+  if (pagerSig !== detailPagerSignature) {
+    detailPagerSignature = pagerSig;
+    pager.replaceChildren();
+    if (runs.length > RUNS_PER_PAGE) {
+      const prev = el('button', 'Prev');
+      prev.disabled = detailPage === 0;
+      prev.onclick = () => { detailPage--; updateDetailRuns(); };
+      const info = el('span', `Page ${detailPage + 1} / ${totalPages}`);
+      info.style.margin = '0 8px';
+      const next = el('button', 'Next');
+      next.disabled = detailPage === totalPages - 1;
+      next.onclick = () => { detailPage++; updateDetailRuns(); };
+      pager.append(prev, info, next);
+    }
   }
 }
 
@@ -486,8 +502,9 @@ function showDetail(model, task) {
   pager.id = 'detailPager';
   pager.className = 'row';
   d.replaceChildren(el('h2', `${model} / ${task.id}`), el('label', 'Prompt'), promptDiv, pager, runsContainer);
-  detailContext = { model, task, runs: ROWS.filter(r => r.model === model && r.task === task.id) };
+  detailContext = { model, taskId: task.id, runs: ROWS.filter(r => r.model === model && r.task === task.id) };
   detailPage = 0;
+  detailRunsSignature = detailPagerSignature = '';
   updateDetailRuns();
   d.hidden = false;
   d.scrollIntoView({ behavior: 'smooth' });
@@ -496,7 +513,7 @@ function showDetail(model, task) {
 async function loadResults() {
   ROWS = await api('/api/results');
   if (detailContext) {
-    detailContext.runs = ROWS.filter(r => r.model === detailContext.model && r.task === detailContext.task);
+    detailContext.runs = ROWS.filter(r => r.model === detailContext.model && r.task === detailContext.taskId);
     updateDetailRuns();
   }
   render();
@@ -541,6 +558,8 @@ $('clear').onclick = async () => {
   const res = await api('/api/clear', {});
   if (res.error) alert(res.error);
   $('detail').hidden = true;
+  detailContext = null;
+  detailRunsSignature = detailPagerSignature = '';
   loadResults();
 };
 
