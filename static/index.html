@@ -508,7 +508,6 @@
       if (html) {
         const iframe = document.createElement('iframe');
         iframe.className = 'preview';
-        iframe.srcdoc = html;
         iframe.hidden = true;
         const btnRow = document.createElement('div');
         btnRow.className = 'row';
@@ -521,7 +520,13 @@
         };
         const toggleBtn = el('button', 'Render HTML inline');
         toggleBtn.onclick = () => {
-          iframe.hidden = !iframe.hidden;
+          if (iframe.hidden) {
+            iframe.srcdoc = html;
+            iframe.hidden = false;
+          } else {
+            iframe.hidden = true;
+            iframe.removeAttribute('srcdoc');
+          }
           toggleBtn.textContent = iframe.hidden ? 'Render HTML inline' : 'Hide inline HTML';
         };
         btnRow.append(openBtn, toggleBtn);

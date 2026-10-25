@@ -10,7 +10,10 @@ def test_runtime_checker_is_defined_and_checks_interaction_and_late_errors():
     injected = game._inject_runtime_checks("<html><body><button>Play</button><canvas></canvas></body></html>")
     assert "play.click()" in injected
     assert "c.dispatchEvent(ev)" in injected
-    assert "snapshot()!==before" in injected
+    assert "idleDomChanged=before.dom!==idle.dom" in injected
+    assert "idleCanvasChanged=changed(before.canvas,idle.canvas)" in injected
+    assert "!idleDomChanged&&after.dom!==idle.dom" in injected
+    assert "!idleCanvasChanged&&changed(idle.canvas,after.canvas)" in injected
     assert "window.__bench_refresh_status();" in injected
 
 
