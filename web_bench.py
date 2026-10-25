@@ -423,8 +423,11 @@ function renderDetailRun(r, index) {
     d.append(noteEl);
   }
   const html = extractHtml(r.output);
-  let frame = null;
   if (html) {
+    const iframe = document.createElement('iframe');
+    iframe.className = 'preview';
+    iframe.srcdoc = html;
+    iframe.hidden = false;
     const btnRow = document.createElement('div');
     btnRow.className = 'row';
     const openBtn = el('button', 'Open HTML in new tab');
@@ -435,19 +438,14 @@ function renderDetailRun(r, index) {
       setTimeout(() => URL.revokeObjectURL(url), 60000);
     };
     const toggleBtn = el('button', 'Render HTML inline');
-    frame = document.createElement('iframe');
-    frame.className = 'preview';
-    frame.srcdoc = html;
-    frame.hidden = true;
     toggleBtn.onclick = () => {
-      frame.hidden = !frame.hidden;
-      toggleBtn.textContent = frame.hidden ? 'Render HTML inline' : 'Hide inline HTML';
+      iframe.hidden = !iframe.hidden;
+      toggleBtn.textContent = iframe.hidden ? 'Hide inline HTML' : 'Render HTML inline';
     };
     btnRow.append(openBtn, toggleBtn);
-    d.append(btnRow);
+    d.append(iframe, btnRow);
   }
   d.append(outDiv);
-  if (frame) d.append(frame);
 }
 
 function updateDetailRuns() {

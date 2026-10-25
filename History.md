@@ -31,3 +31,4 @@ add another task to check bulgarian
 extract all tasks and checks into separate files into a new folder
 
 there is a bug, when i try to view some of the results in the web view the results show for a moment and then hide, this happens when the benchmark is running, however i want to be able to view the results in real time
+make the button Render HTML inline , actually show the render above the answer, e.g. below the button.
