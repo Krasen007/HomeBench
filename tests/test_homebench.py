@@ -5,8 +5,7 @@ Covers fixes for:
 2. send() failing on bytes payloads (results export)
 3. unique_model_name() returning None on duplicate model names
 4. Temperature not appended to note
-5. Backward-compatible aliases map to the extracted task functions
-6. Run button staying grayed after benchmark finishes (state not reset)
+5. Run button staying grayed after benchmark finishes (state not reset)
 """
 import io
 import json
@@ -21,7 +20,7 @@ from homebench import (
     _format_note,
     state,
 )
-from tasks import math, logic, instructions, json_task, code_task, game, bulgarian
+from tasks import bulgarian, code_task, game, instructions, json_task, logic, math
 
 
 # ---------------------------------------------------------------------------
@@ -152,23 +151,6 @@ class TestFormatNote(unittest.TestCase):
     def test_temperature_appended_to_existing_note(self):
         self.assertEqual(_format_note("my run", 0.7), "my run (temp=0.7)")
         self.assertEqual(_format_note("baseline", 0.0), "baseline (temp=0.0)")
-
-
-# ---------------------------------------------------------------------------
-# Aliases — backward-compatible check/explain aliases map to task functions
-# ---------------------------------------------------------------------------
-
-class TestTaskAliases(unittest.TestCase):
-    def test_backward_compat_aliases_match_task_functions(self):
-        import homebench
-
-        for suffix, module in (
-            ("math", math), ("logic", logic), ("instructions", instructions),
-            ("json", json_task), ("code", code_task), ("game", game),
-            ("bg_article", bulgarian),
-        ):
-            self.assertIs(getattr(homebench, "check_" + suffix), module.check)
-            self.assertIs(getattr(homebench, "explain_" + suffix), module.explain)
 
 
 # ---------------------------------------------------------------------------

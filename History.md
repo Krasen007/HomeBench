@@ -148,3 +148,19 @@ embed the openclaw weather skill (SKILL.md) in the prompt, ask the model to
 check the weather in Varna for today and answer with the temperature in
 degrees Celsius. The model should read the skill, formulate the correct
 wttr.in API call (web_fetch or curl), and extract current_condition[0].temp_C.
+
+test 20 should fail if we are using alisases right?
+
+from homebench.py
+# Backward-compatible aliases for extracted task check/explain functions.
+from tasks import math as _t_math, logic as _t_logic, instructions as _t_instructions
+
+does that mean agents.md was not followed?
+also the last commit includes modified test files but this was not discussed as per history.md
+
+but why we need aliases at all?
+seems redundant where are they used?
+
+remove them, we will not use aliases, update the tests to not reference the aliases
+
+update the failing test to not fail as we will no longer use aliases
