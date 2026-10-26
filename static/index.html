@@ -151,19 +151,19 @@
           const td = el('td', rs.length ? `${p}/${rs.length}` : '-', 'cell ' + (rs.length ? scoreClass(p, rs.length) : ''));
           td.onclick = () => showDetail(m, t);
           tr.append(td);
-        const delBtn = el('button', '\u00d7');
-        delBtn.title = 'Delete all ' + rs.length + ' run(s) for ' + m + ' / ' + t.id;
-        delBtn.style.cssText = 'margin-left:6px;font-size:12px;line-height:1;padding:0 4px;';
-        delBtn.onclick = async (e) => {
+        });
+        tr.append(el('td', `${tp}/${tt}`, 'cell ' + (tt ? scoreClass(tp, tt) : '')));
+        const rowDelBtn = el('button', '(-)');
+        rowDelBtn.title = 'Delete all results for model ' + m;
+        rowDelBtn.style.cssText = 'margin-left:6px;font-size:11px;line-height:1;padding:0 4px;';
+        rowDelBtn.onclick = async (e) => {
           e.stopPropagation();
-          if (!confirm('Delete all ' + rs.length + ' result(s) for "' + m + '" / "' + t.id + '"?')) return;
-          const res = await api('/api/delete_rows', { model: m, task: t.id });
+          if (!confirm('Delete all results for model "' + m + '"?')) return;
+          const res = await api('/api/delete_rows', { model: m });
           if (res.error) { alert(res.error); return; }
           loadResults();
         };
-        td.append(delBtn);
-        });
-        tr.append(el('td', `${tp}/${tt}`, 'cell ' + (tt ? scoreClass(tp, tt) : '')));
+        tr.append(rowDelBtn);
         table.append(tr);
       });
     }

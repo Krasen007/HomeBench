@@ -216,6 +216,7 @@ rejects missing/empty/out-of-range values. Prompt embeds the full openclaw
 weather skill verbatim. Tests/test_history_37 and test_history_38 rewritten
 to match the simple behavior; fixture-based tests removed.
 
+
 Add option to delete individual runs or model+task groups from results:
 homebench.delete_rows() removes rows matching filter criteria (model, task,
 batch, run); /api/delete_rows POST endpoint validates filters and delegates
@@ -223,3 +224,5 @@ to delete_rows; web UI shows a × delete button on each results-table cell
 (deletes all runs for that model+task) and a "Delete this run" button in the
 detail view (deletes a single run). Both prompt for confirmation before
 deleting.
+
+Delete rows functionality should show only 1 (-) sign for the whole row, not next to each test
