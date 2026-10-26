@@ -205,3 +205,21 @@ benchmark: homebench.run_benchmark() gains a task_id parameter; /api/run
 accepts a "task" field (validated against known task IDs); the web UI shows a
 "Task" dropdown (default "All tasks") and sends the selected task id with the
 run request; progress total adjusts to runs * 1 when a single task is selected.
+
+extract CSS from static/index.html into static/style.css: homebench.py serves
+/style.css with text/css content type; index.html links to it via
+<link rel="stylesheet" href="style.css">.
+
+Revert weather task to simple version: checker accepts any realistic Celsius
+temperature (-50 to 60) in common formats (18°C, 18 C, 18 degrees celsius),
+rejects missing/empty/out-of-range values. Prompt embeds the full openclaw
+weather skill verbatim. Tests/test_history_37 and test_history_38 rewritten
+to match the simple behavior; fixture-based tests removed.
+
+Add option to delete individual runs or model+task groups from results:
+homebench.delete_rows() removes rows matching filter criteria (model, task,
+batch, run); /api/delete_rows POST endpoint validates filters and delegates
+to delete_rows; web UI shows a × delete button on each results-table cell
+(deletes all runs for that model+task) and a "Delete this run" button in the
+detail view (deletes a single run). Both prompt for confirmation before
+deleting.

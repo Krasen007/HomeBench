@@ -5,283 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>HomeBench</title>
-  <style>
-    :root {
-      --bg: #fafaf9;
-      --fg: #1c1917;
-      --muted: #78716c;
-      --card: #fff;
-      --border: #e7e5e4;
-      --accent: #2563eb;
-      --pass: #16a34a;
-      --fail: #dc2626;
-      --part: #d97706;
-    }
-
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: #161514;
-        --fg: #f5f5f4;
-        --muted: #a8a29e;
-        --card: #1f1e1c;
-        --border: #34312e;
-        --accent: #60a5fa;
-        --pass: #4ade80;
-        --fail: #f87171;
-        --part: #fbbf24;
-      }
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      font: 15px/1.5 system-ui, sans-serif;
-      background: var(--bg);
-      color: var(--fg);
-      margin: 0;
-      padding: 24px;
-    }
-
-    main {
-      max-width: 900px;
-      margin: 0 auto;
-    }
-
-    h1 {
-      font-size: 22px;
-      margin: 0 0 4px;
-    }
-
-    h2 {
-      font-size: 16px;
-      margin: 0 0 12px;
-    }
-
-    .sub {
-      color: var(--muted);
-      margin: 0 0 20px;
-    }
-
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 16px;
-      margin-bottom: 16px;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 12px;
-    }
-
-    label {
-      display: block;
-      font-size: 12px;
-      color: var(--muted);
-      margin-bottom: 4px;
-    }
-
-    input {
-      width: 100%;
-      padding: 8px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      background: var(--bg);
-      color: var(--fg);
-      font: inherit;
-    }
-
-    .wide {
-      grid-column: span 2;
-    }
-
-    .row {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      margin-top: 14px;
-      flex-wrap: wrap;
-    }
-
-    button {
-      padding: 8px 16px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: var(--card);
-      color: var(--fg);
-      font: inherit;
-      cursor: pointer;
-    }
-
-    button.primary {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #fff;
-    }
-
-    button:disabled {
-      opacity: .5;
-      cursor: not-allowed;
-    }
-
-    progress {
-      flex: 1;
-      min-width: 120px;
-      height: 8px;
-    }
-
-    #status {
-      font-size: 13px;
-      color: var(--muted);
-    }
-
-    pre {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 10px;
-      overflow-x: auto;
-      white-space: pre-wrap;
-      word-break: break-word;
-      font-size: 13px;
-      margin: 6px 0;
-    }
-
-    #log {
-      max-height: 110px;
-      overflow-y: auto;
-      margin-top: 10px;
-    }
-
-    .scroll {
-      overflow-x: auto;
-    }
-
-    table {
-      border-collapse: collapse;
-      width: 100%;
-    }
-
-    th,
-    td {
-      padding: 8px 12px;
-      text-align: left;
-      border-bottom: 1px solid var(--border);
-    }
-
-    th {
-      font-size: 12px;
-      color: var(--muted);
-      font-weight: 600;
-    }
-
-    td.cell {
-      cursor: pointer;
-      font-weight: 600;
-      font-variant-numeric: tabular-nums;
-    }
-
-    td.cell:hover {
-      background: var(--bg);
-    }
-
-    .md {
-      margin: 6px 0;
-    }
-
-    .md p {
-      margin: 6px 0;
-    }
-
-    .md pre {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 10px;
-      overflow-x: auto;
-      white-space: pre-wrap;
-      word-break: break-word;
-      font-size: 13px;
-      margin: 6px 0;
-    }
-
-    .md code {
-      font-family: ui-monospace, monospace;
-      font-size: 12px;
-      background: var(--bg);
-      padding: 1px 4px;
-      border-radius: 4px;
-    }
-
-    .md pre code {
-      background: none;
-      padding: 0;
-    }
-
-    .md ul,
-    .md ol {
-      margin: 6px 0 6px 20px;
-    }
-
-    .md h1,
-    .md h2,
-    .md h3,
-    .md h4 {
-      margin: 10px 0 4px;
-    }
-
-    .md blockquote {
-      border-left: 3px solid var(--border);
-      margin: 6px 0;
-      padding-left: 10px;
-      color: var(--muted);
-    }
-
-    .reason {
-      font-size: 13px;
-      font-weight: 600;
-      margin: 2px 0 8px;
-    }
-
-    .preview {
-      width: 100%;
-      height: 420px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      margin: 6px 0 12px;
-      background: #fff;
-    }
-
-    .note {
-      font-size: 13px;
-      color: var(--muted);
-      font-style: italic;
-      margin: 2px 0 8px;
-      white-space: pre-wrap;
-    }
-
-    .pass {
-      color: var(--pass);
-    }
-
-    .fail {
-      color: var(--fail);
-    }
-
-    .part {
-      color: var(--part);
-    }
-
-    .hint {
-      font-size: 12px;
-      color: var(--muted);
-      margin: 10px 0 0;
-    }
-  </style>
+  <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
@@ -427,6 +151,17 @@
           const td = el('td', rs.length ? `${p}/${rs.length}` : '-', 'cell ' + (rs.length ? scoreClass(p, rs.length) : ''));
           td.onclick = () => showDetail(m, t);
           tr.append(td);
+        const delBtn = el('button', '\u00d7');
+        delBtn.title = 'Delete all ' + rs.length + ' run(s) for ' + m + ' / ' + t.id;
+        delBtn.style.cssText = 'margin-left:6px;font-size:12px;line-height:1;padding:0 4px;';
+        delBtn.onclick = async (e) => {
+          e.stopPropagation();
+          if (!confirm('Delete all ' + rs.length + ' result(s) for "' + m + '" / "' + t.id + '"?')) return;
+          const res = await api('/api/delete_rows', { model: m, task: t.id });
+          if (res.error) { alert(res.error); return; }
+          loadResults();
+        };
+        td.append(delBtn);
         });
         tr.append(el('td', `${tp}/${tt}`, 'cell ' + (tt ? scoreClass(tp, tt) : '')));
         table.append(tr);
@@ -556,6 +291,19 @@
         const noteEl = el('div', 'Note: ' + r.note, 'note');
         d.append(noteEl);
       }
+      const delBtn = el('button', 'Delete this run');
+      delBtn.className = 'row';
+      delBtn.style.marginLeft = '0';
+      delBtn.onclick = async (e) => {
+        e.stopPropagation();
+        if (!confirm(`Delete ${r.model} / ${r.task} run ${r.run}?`)) return;
+        const res = await api('/api/delete_rows', {
+          model: r.model, task: r.task, batch: r.batch, run: r.run
+        });
+        if (res.error) { alert(res.error); return; }
+        loadResults();
+      };
+      d.append(delBtn);
       const html = extractHtml(r.output);
       if (html) {
         const iframe = document.createElement('iframe');

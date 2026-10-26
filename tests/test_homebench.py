@@ -9,11 +9,15 @@ Covers fixes for:
 """
 import io
 import json
+import os
+import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
 from homebench import (
     chat,
+    delete_rows,
+    load_rows,
     run_benchmark,
     unique_model_name,
     Handler,
@@ -268,6 +272,58 @@ class TestRunBenchmarkSingleTask(unittest.TestCase):
         written = "".join(call.args[0] for call in mock_file.write.call_args_list)
         tasks_seen = {json.loads(line)["task"] for line in written.strip().splitlines()}
         self.assertEqual(tasks_seen, {t["id"] for t in TASKS})
+
+
+# ---------------------------------------------------------------------------
+# delete_rows — remove rows from results JSONL
+# ---------------------------------------------------------------------------
+
+class TestDeleteRows(unittest.TestCase):
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.path = os.path.join(self.tmpdir, "results.jsonl")
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write_rows(self, rows):
+        with open(self.path, "w", encoding="utf-8") as f:
+            for r in rows:
+                f.write(json.dumps(r) + "\n")
+
+    def test_delete_rows_by_model_and_task(self):
+        self._write_rows([
+            {"batch": 1, "model": "m1", "task": "math", "run": 0, "passed": True},
+            {"batch": 1, "model": "m1", "task": "math", "run": 1, "passed": False},
+            {"batch": 1, "model": "m1", "task": "logic", "run": 0, "passed": True},
+            {"batch": 2, "model": "m2", "task": "math", "run": 0, "passed": True},
+        ])
+        deleted = delete_rows(self.path, {"model": "m1", "task": "math"})
+        self.assertEqual(deleted, 2)
+        remaining = load_rows(self.path)
+        self.assertEqual(len(remaining), 2)
+        self.assertTrue(all(r["model"] != "m1" or r["task"] != "math" for r in remaining))
+
+    def test_delete_rows_no_match(self):
+        self._write_rows([
+            {"batch": 1, "model": "m1", "task": "math", "run": 0, "passed": True},
+        ])
+        deleted = delete_rows(self.path, {"model": "nonexistent"})
+        self.assertEqual(deleted, 0)
+        remaining = load_rows(self.path)
+        self.assertEqual(len(remaining), 1)
+
+    def test_delete_rows_by_batch(self):
+        self._write_rows([
+            {"batch": 1, "model": "m1", "task": "math", "run": 0, "passed": True},
+            {"batch": 2, "model": "m1", "task": "math", "run": 0, "passed": True},
+        ])
+        deleted = delete_rows(self.path, {"batch": 2})
+        self.assertEqual(deleted, 1)
+        remaining = load_rows(self.path)
+        self.assertEqual(len(remaining), 1)
+        self.assertEqual(remaining[0]["batch"], 1)
 
 
 if __name__ == "__main__":

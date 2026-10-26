@@ -155,6 +155,39 @@ def unique_model_name(name, existing):
     return f"{name} ({i})"
 
 
+def delete_rows(path, filters):
+    """Remove rows matching all filter criteria from the JSONL results file.
+
+    ``filters`` is a dict whose keys correspond to row fields (e.g. ``model``,
+    ``task``, ``batch``, ``run``). Only rows where every filter key matches
+    are removed.
+
+    Returns the number of rows deleted.
+    """
+    rows = load_rows(path)
+    remaining = []
+    deleted = 0
+    for r in rows:
+        if all(r.get(k) == v for k, v in filters.items()):
+            deleted += 1
+        else:
+            remaining.append(r)
+    if deleted:
+        directory = os.path.dirname(os.path.abspath(path))
+        fd, temp_path = tempfile.mkstemp(prefix=".homebench-", suffix=".tmp", dir=directory)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                for r in remaining:
+                    f.write(json.dumps(r) + "\n")
+            os.replace(temp_path, path)
+        finally:
+            try:
+                os.remove(temp_path)
+            except FileNotFoundError:
+                pass
+    return deleted
+
+
 def rename_model(path, old_name, new_name):
     """Rename old_name to new_name in every row of the JSONL results file.
 
@@ -230,6 +263,10 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/":
             self.send(PAGE, ctype="text/html")
+            return
+        if path == "/style.css":
+            css_path = Path(__file__).with_name("static") / "style.css"
+            self.send(css_path.read_text(encoding="utf-8"), ctype="text/css")
             return
         if path == "/api/tasks":
             self.send([{"id": t["id"], "prompt": t["prompt"]} for t in TASKS])
@@ -338,6 +375,19 @@ class Handler(BaseHTTPRequestHandler):
                     self.send({"error": str(e)}, code=400)
                     return
             self.send({"ok": True, "name": final})
+            return
+        if path == "/api/delete_rows":
+            with lock:
+                if state["running"]:
+                    self.send({"error": "cannot delete rows while a benchmark is running"},
+                              code=409)
+                    return
+                filters = {k: v for k, v in body.items() if k in ("model", "task", "batch", "run")}
+                if not filters:
+                    self.send({"error": "at least one of model, task, batch, run is required"}, code=400)
+                    return
+                deleted = delete_rows(WEB_OUT, filters)
+            self.send({"ok": True, "deleted": deleted})
             return
         self.send({"error": "not found"}, code=404)
 
