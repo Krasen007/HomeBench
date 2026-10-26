@@ -287,7 +287,7 @@
 <body>
   <main>
     <h1>Mini LLM Bench aka HomeBench</h1>
-    <p class="sub">7 tasks against a local llama-server. Run one model at a time and compare below.</p>
+    <p class="sub">8 tasks against a local llama-server. Run one model at a time and compare below.</p>
 
     <section class="card">
       <h2>Run</h2>
@@ -298,6 +298,11 @@
         </div>
         <div class="wide"><label for="url">llama-server URL</label>
           <input id="url" value="http://localhost:8080">
+        </div>
+        <div><label for="task">Task (run one, or all)</label>
+          <select id="task">
+            <option value="">All tasks</option>
+          </select>
         </div>
         <div><label for="runs">Runs per task</label>
           <input id="runs" type="number" min="1" max="20" value="1">
@@ -715,6 +720,7 @@
       const res = await api('/api/run', {
         name: $('name').value, url: $('url').value, runs: $('runs').value,
         temperature: $('temp').value, max_tokens: $('maxtok').value,
+        task: $('task').value || undefined,
         note: $('note').value
       });
       if (res.error) alert(res.error);
@@ -744,7 +750,17 @@
       URL.revokeObjectURL(url);
     };
 
-    (async () => { TASKS = await api('/api/tasks'); await loadResults(); await poll(); setInterval(poll, 1000); })();
+    (async () => {
+      TASKS = await api('/api/tasks');
+      const taskSel = $('task');
+      for (const t of TASKS) {
+        const o = document.createElement('option');
+        o.value = t.id;
+        o.textContent = t.id;
+        taskSel.appendChild(o);
+      }
+      await loadResults(); await poll(); setInterval(poll, 1000);
+    })();
   </script>
 </body>
 

@@ -14,13 +14,14 @@ from unittest.mock import MagicMock, patch
 
 from homebench import (
     chat,
+    run_benchmark,
     unique_model_name,
     Handler,
     TASKS,
     _format_note,
     state,
 )
-from tasks import bulgarian, code_task, game, instructions, json_task, logic, math
+from tasks import bulgarian, code_task, game, instructions, json_task, logic, math, weather
 
 
 # ---------------------------------------------------------------------------
@@ -215,6 +216,58 @@ class TestWorkResetsState(unittest.TestCase):
                 work()
 
         self.assertFalse(state["running"], "state['running'] should be False after error")
+
+
+# ---------------------------------------------------------------------------
+# run_benchmark — single-task filtering via task_id
+# ---------------------------------------------------------------------------
+
+class TestRunBenchmarkSingleTask(unittest.TestCase):
+    def _fake_response(self, text):
+        body = json.dumps({"choices": [{"message": {"content": text}}]}).encode("utf-8")
+        resp = MagicMock()
+        resp.read.return_value = body
+        resp.__enter__.return_value = resp
+        resp.__exit__.return_value = False
+        return resp
+
+    @patch("homebench.urllib.request.urlopen")
+    def test_task_id_filters_to_single_task(self, mock_urlopen):
+        mock_urlopen.return_value = self._fake_response("Answer: 2.80")
+        rows = []
+        with patch("homebench.open", create=True) as mock_open:
+            mock_file = MagicMock()
+            mock_open.return_value.__enter__.return_value = mock_file
+            run_benchmark(
+                "http://localhost:1234", "test-model", runs=2,
+                temperature=0.0, max_tokens=8192, timeout=300,
+                out_path="/tmp/results.jsonl", task_id="math",
+                on_result=lambda *a: rows.append(a),
+            )
+        # Only math should have been called (runs=2), not all 8 tasks.
+        self.assertEqual(mock_urlopen.call_count, 2)
+        written = "".join(call.args[0] for call in mock_file.write.call_args_list)
+        # All written rows should be for the math task.
+        for line in written.strip().splitlines():
+            row = json.loads(line)
+            self.assertEqual(row["task"], "math")
+
+    @patch("homebench.urllib.request.urlopen")
+    def test_no_task_id_runs_all_tasks(self, mock_urlopen):
+        mock_urlopen.return_value = self._fake_response("Answer: 2.80")
+        with patch("homebench.open", create=True) as mock_open:
+            mock_file = MagicMock()
+            mock_open.return_value.__enter__.return_value = mock_file
+            run_benchmark(
+                "http://localhost:1234", "test-model", runs=1,
+                temperature=0.0, max_tokens=8192, timeout=300,
+                out_path="/tmp/results.jsonl",
+            )
+        # 8 tasks * 1 run each.
+        self.assertEqual(mock_urlopen.call_count, len(TASKS))
+        written = "".join(call.args[0] for call in mock_file.write.call_args_list)
+        tasks_seen = {json.loads(line)["task"] for line in written.strip().splitlines()}
+        self.assertEqual(tasks_seen, {t["id"] for t in TASKS})
 
 
 if __name__ == "__main__":

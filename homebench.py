@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-homebench.py - a tiny 7-task LLM benchmark for llama.cpp (llama-server).
+homebench.py - a tiny 8-task LLM benchmark for llama.cpp (llama-server).
 
 Starts a web UI at http://localhost:8000. Open it in your browser, enter a
 llama-server URL, and run benchmarks. Results accumulate in results.jsonl.
@@ -63,16 +63,22 @@ def chat(base_url, prompt, temperature, max_tokens, timeout):
 # --------------------------------------------------------------------------
 
 def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
-                  out_path, note="", on_result=None):
-    """Run every task `runs` times, append rows to out_path (JSONL).
+                  out_path, note="", on_result=None, task_id=None):
+    """Run tasks `runs` times, append rows to out_path (JSONL).
+
+    If ``task_id`` is given, only that task is run; otherwise every task
+    in ``TASKS`` is run.
 
     on_result(task_id, run_index, passed, reason) is called after each
     task-run so callers can print progress or update UI state.
     Returns the batch id.
     """
+    tasks = [t for t in TASKS if t["id"] == task_id] if task_id else TASKS
+    if task_id and not tasks:
+        raise ValueError(f"unknown task id: {task_id!r}")
     batch = int(time.time())
     with open(out_path, "a") as out:
-        for task in TASKS:
+        for task in tasks:
             for run in range(runs):
                 try:
                     output = chat(url, task["prompt"], temperature,
@@ -272,6 +278,10 @@ class Handler(BaseHTTPRequestHandler):
             temperature = float(body.get("temperature", 0.0))
             max_tokens = int(body.get("max_tokens", 8192))
             note = _format_note(body.get("note", ""), temperature)
+            task_id = (body.get("task") or "").strip() or None
+            if task_id and task_id not in {t["id"] for t in TASKS}:
+                self.send({"error": f"unknown task id: {task_id!r}"}, code=400)
+                return
             if not name:
                 name = infer_model_name(url) or "model"
             with lock:
@@ -280,8 +290,9 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 existing = {r["model"] for r in load_rows(WEB_OUT)}
                 name = unique_model_name(name, existing)
+                total_tasks = 1 if task_id else len(TASKS)
                 state.update({"running": True, "model": name, "done": 0,
-                              "total": len(TASKS) * runs, "log": [], "error": None})
+                              "total": total_tasks * runs, "log": [], "error": None})
 
             def work():
                 try:
@@ -291,7 +302,8 @@ class Handler(BaseHTTPRequestHandler):
                             state["log"].append(
                                 f"{task_id} run {run + 1}: {'PASS' if passed else 'FAIL'}")
                     run_benchmark(url, name, runs, temperature, max_tokens, 300,
-                                  WEB_OUT, note=note, on_result=on_result)
+                                  WEB_OUT, note=note, on_result=on_result,
+                                  task_id=task_id)
                 finally:
                     with lock:
                         state["running"] = False

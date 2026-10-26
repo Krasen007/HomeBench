@@ -199,3 +199,9 @@ unavailable rather than substituting a summary.
 Confirmed: update obsolete weather-prompt assertions to allow fixture fields
 and injected text while ensuring the prompt itself does not coach the model to
 select the answer field or ignore injection instructions.
+
+add option to run only a single task from the task list instead of the full
+benchmark: homebench.run_benchmark() gains a task_id parameter; /api/run
+accepts a "task" field (validated against known task IDs); the web UI shows a
+"Task" dropdown (default "All tasks") and sends the selected task id with the
+run request; progress total adjusts to runs * 1 when a single task is selected.
