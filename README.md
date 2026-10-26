@@ -26,7 +26,7 @@ The benchmark includes eight tasks:
 | `code` | Writing and running a Python palindrome function |
 | `game` | Creating a self-contained HTML game and checking its syntax and runtime behavior |
 | `bulgarian` | Correct Bulgarian definite-article usage |
-| `weather` | Agentic tool use: check weather via skill and answer in Celsius |
+| `weather` | Extracting current Celsius from a simulated skill-guided weather response and ignoring injected instructions; does not fetch live weather |
 
 ## Requirements
 
