@@ -142,3 +142,9 @@ Review: Keep the mocked chat active for the full run_benchmark call in the tempe
 update readme to be more descripitve and add how to guide
 
 add as image screeenshot in the readme
+
+add agentic weather task that tests whether models can use tools/skills:
+embed the openclaw weather skill (SKILL.md) in the prompt, ask the model to
+check the weather in Varna for today and answer with the temperature in
+degrees Celsius. The model should read the skill, formulate the correct
+wttr.in API call (web_fetch or curl), and extract current_condition[0].temp_C.

@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, patch
 from homebench import TASKS, chat
 
 
-def test_demo_suite_stays_small_and_includes_the_seven_requested_tasks():
-    assert len(TASKS) == 7
+def test_demo_suite_stays_small_and_includes_the_eight_requested_tasks():
+    assert len(TASKS) == 8
     assert all(task["id"] and task["prompt"] for task in TASKS)
 
 

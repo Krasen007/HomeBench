@@ -28,7 +28,7 @@ from tasks import TASKS
 # Backward-compatible aliases for extracted task check/explain functions.
 from tasks import math as _t_math, logic as _t_logic, instructions as _t_instructions
 from tasks import json_task as _t_json, code_task as _t_code, game as _t_game
-from tasks import bulgarian as _t_bg
+from tasks import bulgarian as _t_bg, weather as _t_weather
 
 check_math, explain_math = _t_math.check, _t_math.explain
 check_logic, explain_logic = _t_logic.check, _t_logic.explain
@@ -37,6 +37,7 @@ check_json, explain_json = _t_json.check, _t_json.explain
 check_code, explain_code = _t_code.check, _t_code.explain
 check_game, explain_game = _t_game.check, _t_game.explain
 check_bg_article, explain_bg_article = _t_bg.check, _t_bg.explain
+check_weather, explain_weather = _t_weather.check, _t_weather.explain
 
 
 # --------------------------------------------------------------------------

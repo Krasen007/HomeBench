@@ -2,7 +2,7 @@
 
 HomeBench is a lightweight benchmark for comparing small language models served
 locally by [llama.cpp](https://github.com/ggml-org/llama.cpp). It provides a
-browser-based interface for running seven repeatable tasks, inspecting the
+browser-based interface for running eight repeatable tasks, inspecting the
 model's answers and pass/fail explanations, and keeping results across runs.
 
 The application uses Python's standard library and has no Python package
@@ -15,7 +15,7 @@ completions endpoint.
 
 ## What it tests
 
-The benchmark includes seven tasks:
+The benchmark includes eight tasks:
 
 | Task | What it checks |
 | --- | --- |
@@ -26,6 +26,7 @@ The benchmark includes seven tasks:
 | `code` | Writing and running a Python palindrome function |
 | `game` | Creating a self-contained HTML game and checking its syntax and runtime behavior |
 | `bulgarian` | Correct Bulgarian definite-article usage |
+| `weather` | Agentic tool use: check weather via skill and answer in Celsius |
 
 ## Requirements
 

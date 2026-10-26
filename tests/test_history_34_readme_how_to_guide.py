@@ -28,5 +28,5 @@ def test_readme_documents_setup_run_results_security_and_tests():
 
 
 def test_readme_task_descriptions_track_the_task_registry_count():
-    assert "seven repeatable tasks" in README
+    assert "eight repeatable tasks" in README
     assert README.count("| `") >= len(TASKS)
