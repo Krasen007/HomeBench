@@ -226,3 +226,9 @@ detail view (deletes a single run). Both prompt for confirmation before
 deleting.
 
 Delete rows functionality should show only 1 (-) sign for the whole row, not next to each test
+
+Replace the single temperature input field in the Web View with a
+multi-selection tool for temperature values and run counts (e.g., 1× at 0.0,
+3× at 0.6, 3× at 1.0). Clicking "Run Benchmark" should queue and execute all
+specified runs automatically. Also add elapsed time for each run and or
+average as a column.

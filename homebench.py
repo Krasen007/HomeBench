@@ -71,6 +71,8 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
 
     on_result(task_id, run_index, passed, reason) is called after each
     task-run so callers can print progress or update UI state.
+    Each row records ``elapsed`` — the wall-clock seconds spent on that
+    single task run (chat request plus checker).
     Returns the batch id.
     """
     tasks = [t for t in TASKS if t["id"] == task_id] if task_id else TASKS
@@ -80,6 +82,7 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
     with open(out_path, "a") as out:
         for task in tasks:
             for run in range(runs):
+                started = time.perf_counter()
                 try:
                     output = chat(url, task["prompt"], temperature,
                                   max_tokens, timeout)
@@ -87,16 +90,74 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                     reason = task.get("explain", lambda x: "")(output)
                 except Exception as e:  # server down, timeout, bad response...
                     output, passed, reason = f"[ERROR] {e}", False, "FAIL: " + str(e)
+                elapsed = round(time.perf_counter() - started, 3)
                 row = {
                     "batch": batch, "model": name, "task": task["id"],
                     "run": run, "passed": passed, "reason": reason,
                     "output": output, "note": note, "temperature": temperature,
+                    "elapsed": elapsed,
                 }
                 out.write(json.dumps(row) + "\n")
                 out.flush()
                 if on_result:
                     on_result(task["id"], run, passed, reason)
     return batch
+
+
+# Highest number of repeats allowed for one temperature plan.
+MAX_PLAN_RUNS = 50
+
+
+def parse_plans(raw):
+    """Validate temperature plans: ``[{"temperature": 0.6, "runs": 3}, ...]``.
+
+    Returns a normalized list of dicts with float ``temperature`` and int
+    ``runs``. Raises ValueError with a user-facing message for invalid input.
+    """
+    if not isinstance(raw, list) or not raw:
+        raise ValueError("at least one temperature plan is required")
+    plans = []
+    for item in raw:
+        if not isinstance(item, dict):
+            raise ValueError("each temperature plan must be an object")
+        try:
+            temperature = float(item.get("temperature", 0.0))
+            runs = int(item.get("runs", 1))
+        except (TypeError, ValueError):
+            raise ValueError("temperature and runs must be numbers")
+        if not 0 <= temperature <= 2:
+            raise ValueError("temperature must be between 0 and 2")
+        if not 1 <= runs <= MAX_PLAN_RUNS:
+            raise ValueError(f"runs must be between 1 and {MAX_PLAN_RUNS}")
+        plans.append({"temperature": temperature, "runs": runs})
+    return plans
+
+
+def run_benchmark_plans(url, name, plans, max_tokens, timeout, out_path,
+                        note="", task_id=None, on_result=None, on_plan=None):
+    """Execute every temperature plan in order, one model label per plan.
+
+    Each plan runs the selected task(s) ``runs`` times at its temperature.
+    Labels are made unique against the results file (and earlier plans) so a
+    multi-temperature sweep does not overwrite previous results.
+
+    on_plan(index, label, plan) is called before a plan starts so callers can
+    update progress state. Returns the list of ``(label, plan)`` jobs executed.
+    """
+    existing = {r.get("model") for r in load_rows(out_path)}
+    jobs = []
+    for plan in plans:
+        label = unique_model_name(name, existing)
+        existing.add(label)
+        jobs.append((label, plan))
+    for index, (label, plan) in enumerate(jobs):
+        if on_plan:
+            on_plan(index, label, plan)
+        run_benchmark(url, label, plan["runs"], plan["temperature"],
+                      max_tokens, timeout, out_path,
+                      note=_format_note(note, plan["temperature"]),
+                      on_result=on_result, task_id=task_id)
+    return jobs
 
 
 def load_rows(path):
@@ -227,7 +288,8 @@ def rename_model(path, old_name, new_name):
 
 WEB_OUT = "results.jsonl"
 lock = threading.Lock()
-state = {"running": False, "model": "", "done": 0, "total": 0, "log": [], "error": None}
+state = {"running": False, "model": "", "done": 0, "total": 0, "log": [],
+         "error": None, "plan": 0, "plans": 0}
 
 
 def latest_rows():
@@ -311,13 +373,24 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/run":
             name = (body.get("name") or "").strip()
             url = (body.get("url") or "").strip()
-            runs = int(body.get("runs", 1))
-            temperature = float(body.get("temperature", 0.0))
             max_tokens = int(body.get("max_tokens", 8192))
-            note = _format_note(body.get("note", ""), temperature)
+            note = body.get("note", "")
             task_id = (body.get("task") or "").strip() or None
             if task_id and task_id not in {t["id"] for t in TASKS}:
                 self.send({"error": f"unknown task id: {task_id!r}"}, code=400)
+                return
+            # New multi-temperature requests send "plans"; the legacy single
+            # temperature/runs fields are still accepted for API clients.
+            raw_plans = body.get("plans")
+            if raw_plans is None:
+                raw_plans = [{
+                    "temperature": body.get("temperature", 0.0),
+                    "runs": body.get("runs", 1),
+                }]
+            try:
+                plans = parse_plans(raw_plans)
+            except ValueError as e:
+                self.send({"error": str(e)}, code=400)
                 return
             if not name:
                 name = infer_model_name(url) or "model"
@@ -328,25 +401,36 @@ class Handler(BaseHTTPRequestHandler):
                 existing = {r["model"] for r in load_rows(WEB_OUT)}
                 name = unique_model_name(name, existing)
                 total_tasks = 1 if task_id else len(TASKS)
+                total_runs = sum(p["runs"] for p in plans) * total_tasks
                 state.update({"running": True, "model": name, "done": 0,
-                              "total": total_tasks * runs, "log": [], "error": None})
+                              "total": total_runs, "log": [], "error": None,
+                              "plan": 1, "plans": len(plans)})
+
+            def on_result(task_id, run, passed, reason):
+                with lock:
+                    state["done"] += 1
+                    state["log"].append(
+                        f"{task_id} run {run + 1}: {'PASS' if passed else 'FAIL'}")
+
+            def on_plan(index, label, plan):
+                with lock:
+                    state["model"] = label
+                    state["plan"] = index + 1
+                    state["log"].append(
+                        f"queued {label} @ temp {plan['temperature']} × "
+                        f"{plan['runs']} run(s)")
 
             def work():
                 try:
-                    def on_result(task_id, run, passed, reason):
-                        with lock:
-                            state["done"] += 1
-                            state["log"].append(
-                                f"{task_id} run {run + 1}: {'PASS' if passed else 'FAIL'}")
-                    run_benchmark(url, name, runs, temperature, max_tokens, 300,
-                                  WEB_OUT, note=note, on_result=on_result,
-                                  task_id=task_id)
+                    run_benchmark_plans(url, name, plans, max_tokens, 300,
+                                        WEB_OUT, note=note, task_id=task_id,
+                                        on_result=on_result, on_plan=on_plan)
                 finally:
                     with lock:
                         state["running"] = False
 
             threading.Thread(target=work, daemon=True).start()
-            self.send({"ok": True})
+            self.send({"ok": True, "queued": len(plans), "total": total_runs})
             return
         if path == "/api/clear":
             if not confirm_clear():
@@ -358,7 +442,8 @@ class Handler(BaseHTTPRequestHandler):
                 pass
             with lock:
                 state.update({"running": False, "model": "", "done": 0,
-                              "total": 0, "log": [], "error": None})
+                              "total": 0, "log": [], "error": None,
+                              "plan": 0, "plans": 0})
             self.send({"ok": True})
             return
         if path == "/api/rename_model":

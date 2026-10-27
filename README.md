@@ -76,17 +76,25 @@ Open the address printed in the terminal (by default
 1. Enter the llama-server URL, such as `http://localhost:8080`.
 2. Optionally enter a model label. Leave it blank to try automatic name
    detection, or use **Detect from server**.
-3. Choose the number of runs per task, temperature, and maximum tokens.
+3. Build a list of **temperature plans** — each row queues a batch that runs
+   every task the given number of times at that temperature (for example
+   `1 × at 0.0`, `3 × at 0.6`, `3 × at 1.0`). Use **+ Add temperature** to
+   queue more sweeps, and **Remove** to drop one. Set the maximum tokens once
+   for the whole queue.
 4. Optionally add a note for the run.
-5. Select **Run benchmark** and follow the progress indicator.
+5. Select **Run benchmark** to queue and execute every plan automatically.
+   Follow the progress indicator; it reports the active plan and run counts.
 
-The benchmark runs every task for the selected number of repetitions. Each
+The benchmark runs every task for the number of repetitions in each plan. Each
 answer is checked independently, and the results include a reason describing
-the pass or failure.
+the pass or failure plus the elapsed time for that run.
 
 ### 4. Inspect and manage results
 
 - Select a result cell to view its task prompt, answer, and pass/fail reason.
+- The **avg time** column shows the mean elapsed seconds for that model's runs;
+  hover a task cell for that task's average, and the detail view shows the
+  elapsed time of each individual run.
 - Use **Prev** and **Next** to browse runs and tasks.
 - For game output, use **Render HTML inline** or **Open HTML in new tab** to
   inspect the generated page.
@@ -97,8 +105,8 @@ the pass or failure.
 
 Results are stored in `results.jsonl` in the application directory. Each line
 is a JSON object containing the model label, task, answer, pass/fail status,
-explanation, temperature, and run notes. Keep a copy of this file if you want
-to back up or transfer benchmark history.
+explanation, temperature, elapsed time, and run notes. Keep a copy of this file
+if you want to back up or transfer benchmark history.
 
 ## Security note
 

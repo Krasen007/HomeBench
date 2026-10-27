@@ -28,11 +28,13 @@
             <option value="">All tasks</option>
           </select>
         </div>
-        <div><label for="runs">Runs per task</label>
-          <input id="runs" type="number" min="1" max="20" value="1">
-        </div>
-        <div><label for="temp">Temperature</label>
-          <input id="temp" type="number" min="0" max="2" step="0.1" value="0">
+        <div class="wide"><label>Temperature plans</label>
+          <div id="plans" class="plans"></div>
+          <div class="row" style="margin-top:8px;">
+            <button id="addPlan" type="button">+ Add temperature</button>
+            <span class="hint" style="margin:0;">Each row queues its own batch:
+              <em>runs × at temperature</em>.</span>
+          </div>
         </div>
         <div><label for="maxtok">Max tokens</label>
           <input id="maxtok" type="number" min="64" step="64" value="8192">
@@ -102,6 +104,56 @@
 
     function scoreClass(p, t) { return p === t ? 'pass' : p === 0 ? 'fail' : 'part'; }
 
+    function formatSeconds(v) {
+      if (!Number.isFinite(v)) return '-';
+      return (v >= 10 ? v.toFixed(1) : v.toFixed(2)) + 's';
+    }
+
+    function average(values) {
+      const nums = values.filter(Number.isFinite);
+      return nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : null;
+    }
+
+    // Temperature plans: one row per queued batch, e.g. "3 × at 0.6".
+    function addPlanRow(runs = 1, temperature = 0.0) {
+      const row = document.createElement('div');
+      row.className = 'plan-row';
+      const runsInput = el('input');
+      runsInput.type = 'number';
+      runsInput.min = '1';
+      runsInput.max = '50';
+      runsInput.step = '1';
+      runsInput.value = String(runs);
+      runsInput.className = 'plan-runs';
+      runsInput.setAttribute('aria-label', 'Number of runs');
+      const times = el('span', '× at');
+      const tempInput = el('input');
+      tempInput.type = 'number';
+      tempInput.min = '0';
+      tempInput.max = '2';
+      tempInput.step = '0.1';
+      tempInput.value = String(temperature);
+      tempInput.className = 'plan-temp';
+      tempInput.setAttribute('aria-label', 'Temperature');
+      const remove = el('button', 'Remove');
+      remove.type = 'button';
+      remove.className = 'plan-remove';
+      remove.onclick = () => {
+        if ($('plans').children.length > 1) row.remove();
+        else alert('At least one temperature plan is required.');
+      };
+      row.append(runsInput, times, tempInput, remove);
+      $('plans').append(row);
+      return row;
+    }
+
+    function readPlans() {
+      return [...document.querySelectorAll('#plans .plan-row')].map(row => ({
+        runs: Number(row.querySelector('.plan-runs').value),
+        temperature: Number(row.querySelector('.plan-temp').value)
+      }));
+    }
+
     function render() {
       const models = [...new Set(ROWS.map(r => r.model))];
       const table = $('table');
@@ -123,6 +175,8 @@
       head.append(el('th', 'temp'));
       TASKS.forEach(t => head.append(el('th', t.id)));
       head.append(el('th', 'total'));
+      head.append(el('th', 'avg time'));
+      head.append(el('th', ''));
       table.append(head);
 
       models.forEach(m => {
@@ -149,10 +203,14 @@
           const p = rs.filter(r => r.passed).length;
           tp += p; tt += rs.length;
           const td = el('td', rs.length ? `${p}/${rs.length}` : '-', 'cell ' + (rs.length ? scoreClass(p, rs.length) : ''));
+          const taskAvg = average(rs.map(r => Number(r.elapsed)));
+          if (taskAvg !== null) td.title = `average ${formatSeconds(taskAvg)} per run`;
           td.onclick = () => showDetail(m, t);
           tr.append(td);
         });
         tr.append(el('td', `${tp}/${tt}`, 'cell ' + (tt ? scoreClass(tp, tt) : '')));
+        const avgTime = average(modelRows.map(r => Number(r.elapsed)));
+        tr.append(el('td', formatSeconds(avgTime), 'cell'));
         const rowDelBtn = el('button', '(-)');
         rowDelBtn.title = 'Delete all results for model ' + m;
         rowDelBtn.style.cssText = 'margin-left:6px;font-size:11px;line-height:1;padding:0 4px;';
@@ -286,7 +344,8 @@
       const reasonEl = document.createElement('div');
       reasonEl.className = 'reason ' + (r.passed ? 'pass' : 'fail');
       reasonEl.textContent = r.reason || (r.passed ? 'PASS' : 'FAIL');
-      d.append(el('label', `Run ${index + 1}: ${r.passed ? 'PASS' : 'FAIL'}`), reasonEl);
+      const elapsedText = Number.isFinite(Number(r.elapsed)) ? ` — ${formatSeconds(Number(r.elapsed))}` : '';
+      d.append(el('label', `Run ${index + 1}: ${r.passed ? 'PASS' : 'FAIL'}${elapsedText}`), reasonEl);
       if (r.note) {
         const noteEl = el('div', 'Note: ' + r.note, 'note');
         d.append(noteEl);
@@ -443,9 +502,11 @@
       try {
         const s = await api('/api/status');
         $('run').disabled = s.running;
+        $('addPlan').disabled = s.running;
         $('securityWarning').hidden = s.running;
         $('bar').value = s.total ? s.done / s.total : 0;
-        $('status').textContent = s.running ? `Running ${s.model}: ${s.done}/${s.total}`
+        const planInfo = s.running && s.plans > 1 ? ` (plan ${s.plan}/${s.plans})` : '';
+        $('status').textContent = s.running ? `Running ${s.model}${planInfo}: ${s.done}/${s.total}`
           : s.error ? 'Error: ' + s.error
             : s.total ? `Finished ${s.model}` : 'Idle';
         $('log').hidden = !s.log.length;
@@ -465,15 +526,31 @@
     };
 
     $('run').onclick = async () => {
+      const plans = readPlans();
+      if (!plans.length) { alert('Add at least one temperature plan.'); return; }
+      for (const p of plans) {
+        if (!Number.isFinite(p.runs) || p.runs < 1 || p.runs > 50) {
+          alert('Runs per plan must be a whole number between 1 and 50.');
+          return;
+        }
+        p.runs = Math.round(p.runs);
+        if (!Number.isFinite(p.temperature) || p.temperature < 0 || p.temperature > 2) {
+          alert('Temperature must be between 0 and 2.');
+          return;
+        }
+      }
+      $('run').disabled = true;
       const res = await api('/api/run', {
-        name: $('name').value, url: $('url').value, runs: $('runs').value,
-        temperature: $('temp').value, max_tokens: $('maxtok').value,
+        name: $('name').value, url: $('url').value, plans,
+        max_tokens: $('maxtok').value,
         task: $('task').value || undefined,
         note: $('note').value
       });
-      if (res.error) alert(res.error);
+      if (res.error) { alert(res.error); $('run').disabled = false; }
       poll();
     };
+
+    $('addPlan').onclick = () => addPlanRow(1, 0.6);
 
     $('clear').onclick = async () => {
       if (!confirm('Delete all saved results?')) return;
@@ -500,6 +577,7 @@
 
     (async () => {
       TASKS = await api('/api/tasks');
+      addPlanRow(1, 0.0);
       const taskSel = $('task');
       for (const t of TASKS) {
         const o = document.createElement('option');

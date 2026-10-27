@@ -91,6 +91,33 @@ input {
   grid-column: span 2;
 }
 
+.plans {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.plan-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.plan-row input {
+  width: 90px;
+}
+
+.plan-row span {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.plan-remove {
+  margin-left: auto;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
 .row {
   display: flex;
   gap: 8px;
