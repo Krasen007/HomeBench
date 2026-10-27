@@ -232,3 +232,5 @@ multi-selection tool for temperature values and run counts (e.g., 1× at 0.0,
 3× at 0.6, 3× at 1.0). Clicking "Run Benchmark" should queue and execute all
 specified runs automatically. Also add elapsed time for each run and or
 average as a column.
+
+merge cline/g8t78c10 into master then delete the cline branch
