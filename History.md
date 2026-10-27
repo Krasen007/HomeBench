@@ -233,4 +233,5 @@ multi-selection tool for temperature values and run counts (e.g., 1× at 0.0,
 specified runs automatically. Also add elapsed time for each run and or
 average as a column.
 
-merge cline/g8t78c10 into master then delete the cline branch
+update the colum for avg time to show total per run not the average per all tasks
+i already did some changes but not all

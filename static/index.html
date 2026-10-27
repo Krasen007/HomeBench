@@ -114,6 +114,11 @@
       return nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : null;
     }
 
+    function totalPerRun(values) {
+      const nums = values.filter(Number.isFinite);
+      return nums.length ? nums.reduce((a, b) => a + b, 0) : null;
+    }
+
     // Temperature plans: one row per queued batch, e.g. "3 × at 0.6".
     function addPlanRow(runs = 1, temperature = 0.0) {
       const row = document.createElement('div');
@@ -175,7 +180,7 @@
       head.append(el('th', 'temp'));
       TASKS.forEach(t => head.append(el('th', t.id)));
       head.append(el('th', 'total'));
-      head.append(el('th', 'avg time'));
+      head.append(el('th', 'total per run'));
       head.append(el('th', ''));
       table.append(head);
 
@@ -209,8 +214,9 @@
           tr.append(td);
         });
         tr.append(el('td', `${tp}/${tt}`, 'cell ' + (tt ? scoreClass(tp, tt) : '')));
-        const avgTime = average(modelRows.map(r => Number(r.elapsed)));
-        tr.append(el('td', formatSeconds(avgTime), 'cell'));
+        const nums = modelRows.map(r => Number(r.elapsed)).filter(Number.isFinite);
+        const totalPerRun = nums.length ? nums.reduce((a, b) => a + b, 0) : null;
+        tr.append(el('td', formatSeconds(totalPerRun), 'cell'));
         const rowDelBtn = el('button', '(-)');
         rowDelBtn.title = 'Delete all results for model ' + m;
         rowDelBtn.style.cssText = 'margin-left:6px;font-size:11px;line-height:1;padding:0 4px;';

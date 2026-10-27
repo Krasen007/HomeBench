@@ -44,8 +44,8 @@ def test_run_button_sends_every_plan_in_one_request():
 
 
 def test_results_table_has_elapsed_average_column():
-    assert "el('th', 'avg time')" in HTML
-    assert "formatSeconds(avgTime)" in HTML
+    assert "el('th', 'total per run')" in HTML
+    assert "formatSeconds(totalPerRun)" in HTML
     assert "formatSeconds(Number(r.elapsed))" in HTML
 
 
