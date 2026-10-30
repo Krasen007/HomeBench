@@ -15,7 +15,7 @@ completions endpoint.
 
 ## What it tests
 
-The benchmark includes eight tasks:
+The benchmark includes nine tasks:
 
 | Task | What it checks |
 | --- | --- |
@@ -27,6 +27,7 @@ The benchmark includes eight tasks:
 | `game` | Creating a self-contained HTML game and checking its syntax and runtime behavior |
 | `bulgarian` | Correct Bulgarian definite-article usage |
 | `weather` | Extracting current Celsius from a simulated skill-guided weather response and ignoring injected instructions; does not fetch live weather |
+| `game_solved` | Generating a complete toddler HTML5 game with all required features |
 
 ## Requirements
 

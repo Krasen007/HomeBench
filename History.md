@@ -235,3 +235,6 @@ average as a column.
 
 update the colum for avg time to show total per run not the average per all tasks
 i already did some changes but not all
+
+in 'start.bat' (see below for file content) we should add some code to verify if the user has the needed requirements on their device to run the app
+<file_content path="start.bat">homebench.py</file_content>
