@@ -183,7 +183,7 @@
       $('taskAll').indeterminate = selected > 0 && selected < options.length;
     }
 
-    let sortKey = '', sortDir = 1;
+    let sortKey = 'date', sortDir = -1;
 
     function sortBy(key) {
       if (!key) return;
@@ -208,11 +208,24 @@
       const rs = ROWS.filter(r => r.model === model);
       return rs.filter(r => r.passed).length / Math.max(rs.length, 1);
     }
+    function latestBatchFor(model) {
+      const batches = ROWS.filter(r => r.model === model)
+        .map(r => Number(r.batch)).filter(Number.isFinite);
+      return batches.length ? Math.max(...batches) : null;
+    }
+    function formatDateTime(batch) {
+      if (!Number.isFinite(batch)) return '-';
+      const date = new Date(batch * 1000);
+      return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString();
+    }
     function sortModels(models) {
       if (!sortKey) return models;
       return [...models].sort((a, b) => {
         let va, vb;
-        if (sortKey === 'model') { va = a; vb = b; }
+        if (sortKey === 'date') {
+          va = latestBatchFor(a) ?? -Infinity;
+          vb = latestBatchFor(b) ?? -Infinity;
+        } else if (sortKey === 'model') { va = a; vb = b; }
         else if (sortKey === 'temp') {
           va = ROWS.find(r => r.model === a)?.temperature ?? 0;
           vb = ROWS.find(r => r.model === b)?.temperature ?? 0;
@@ -283,10 +296,11 @@
       if (!models.length) return;
 
       const colgroup = el('colgroup');
-      const columnCount = TASKS.length + 5;
+      const columnCount = TASKS.length + 6;
       for (let i = 0; i < columnCount; i++) {
         const col = document.createElement('col');
-        const defaultWidth = i === 0 ? 190 : i === 1 ? 76 : i === columnCount - 1 ? 56 : 112;
+        const defaultWidth = i === 0 ? 170 : i === 1 ? 190
+          : i === 2 ? 76 : i === columnCount - 1 ? 56 : 112;
         col.style.width = `${columnWidths.get(i) || defaultWidth}px`;
         colgroup.append(col);
       }
@@ -301,11 +315,12 @@
         resizeHandle(cell, colgroup.children[index], index);
         return cell;
       };
-      head.append(sortable(el('th', 'model'), 'model', 0));
-      head.append(sortable(el('th', 'temp'), 'temp', 1));
-      TASKS.forEach((t, i) => head.append(sortable(el('th', t.id), t.id, i + 2)));
-      head.append(sortable(el('th', 'total'), 'total', TASKS.length + 2));
-      head.append(sortable(el('th', 'total per run'), 'total per run', TASKS.length + 3));
+      head.append(sortable(el('th', 'date/time'), 'date', 0));
+      head.append(sortable(el('th', 'model'), 'model', 1));
+      head.append(sortable(el('th', 'temp'), 'temp', 2));
+      TASKS.forEach((t, i) => head.append(sortable(el('th', t.id), t.id, i + 3)));
+      head.append(sortable(el('th', 'total'), 'total', TASKS.length + 3));
+      head.append(sortable(el('th', 'total per run'), 'total per run', TASKS.length + 4));
       head.append(el('th', ''));
       thead.append(head);
       table.append(thead);
@@ -313,6 +328,14 @@
       const tbody = el('tbody');
       models.forEach(m => {
         const tr = el('tr');
+        const modelRows = ROWS.filter(r => r.model === m);
+        const latestBatch = latestBatchFor(m);
+        const dateCell = el('td', formatDateTime(latestBatch), 'cell');
+        const dateValue = Number.isFinite(latestBatch)
+          ? new Date(latestBatch * 1000) : null;
+        dateCell.title = dateValue && !Number.isNaN(dateValue.getTime())
+          ? dateValue.toISOString() : '';
+        tr.append(dateCell);
         const modelTd = el('td', m, 'cell');
         modelTd.title = 'Click to rename this model';
         modelTd.tabIndex = 0;
@@ -326,7 +349,6 @@
           }
         };
         tr.append(modelTd);
-        const modelRows = ROWS.filter(r => r.model === m);
         const temps = [...new Set(modelRows.map(r => r.temperature).filter(v => v !== undefined))];
         tr.append(el('td', temps.length ? String(temps[0]) : '-', 'cell'));
         let tp = 0, tt = 0;
@@ -365,6 +387,7 @@
         if (key) { cell.className = 'sortable'; cell.onclick = () => sortBy(key); }
         return cell;
       };
+      foot.append(footSortable(el('td', 'date/time'), 'date'));
       foot.append(footSortable(el('td', 'model'), 'model'));
       foot.append(footSortable(el('td', 'temp'), 'temp'));
       TASKS.forEach(t => foot.append(footSortable(el('td', t.id), t.id)));
