@@ -49,6 +49,17 @@
         <span id="status">Idle</span>
       </div>
       <pre id="log" hidden></pre>
+      <section id="liveStream" class="live-stream" hidden aria-live="polite">
+        <h3 id="liveStreamTitle">Live model output</h3>
+        <details open>
+          <summary>Generated answer</summary>
+          <pre id="liveOutput" class="live-stream-text">Waiting for model output...</pre>
+        </details>
+        <details id="reasoningDetails" hidden>
+          <summary>Reasoning tokens</summary>
+          <pre id="liveReasoning" class="live-stream-text"></pre>
+        </details>
+      </section>
       <div id="securityWarning"
         style="margin-top:12px;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);font-size:13px;color:var(--muted);">
         ⚠️ <strong>Security:</strong> the <em>code</em> task executes model-generated Python locally. Only run models
@@ -649,6 +660,18 @@
             : s.total ? `Finished ${s.model}` : 'Idle';
         $('log').hidden = !s.log.length;
         $('log').textContent = s.log.join('\n');
+        $('liveStream').hidden = !(s.running || s.stream_task
+          || s.stream_output || s.stream_reasoning);
+        if (s.running || s.stream_task) {
+          $('liveStreamTitle').textContent = s.stream_task
+            ? `Live model output — ${s.model} / ${s.stream_task} run ${s.stream_run}`
+            : `Live model output — ${s.model}`;
+        }
+        if (s.running || s.stream_task) {
+          $('liveOutput').textContent = s.stream_output || 'Waiting for answer tokens...';
+          $('liveReasoning').textContent = s.stream_reasoning || '';
+          $('reasoningDetails').hidden = !s.stream_reasoning;
+        }
         if (s.running || wasRunning) await loadResults();
         wasRunning = s.running;
       } catch (e) { $('status').textContent = 'Cannot reach web_bench.py server'; }

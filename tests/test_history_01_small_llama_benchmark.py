@@ -1,5 +1,6 @@
 """History: keep the demo benchmark small and usable with llama.cpp."""
 
+import io
 import json
 from unittest.mock import MagicMock, patch
 
@@ -17,6 +18,7 @@ def test_chat_uses_llama_cpp_openai_compatible_endpoint(urlopen):
     response.read.return_value = json.dumps({
         "choices": [{"message": {"content": "Answer: 2.80"}}]
     }).encode()
+    response.readline.side_effect = io.BytesIO(response.read.return_value).readline
     response.__enter__.return_value = response
     urlopen.return_value = response
 

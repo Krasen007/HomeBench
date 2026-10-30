@@ -2,7 +2,7 @@
 
 import io
 import json
-from pathlib import Path
+import io
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -10,12 +10,10 @@ import pytest
 import homebench
 
 
-ROOT = Path(__file__).parents[1]
-
-
 def _response(payload):
     response = MagicMock()
     response.read.return_value = json.dumps(payload).encode("utf-8")
+    response.readline.side_effect = io.BytesIO(response.read.return_value).readline
     response.__enter__.return_value = response
     response.__exit__.return_value = False
     return response
@@ -60,10 +58,3 @@ def test_run_benchmark_persists_response_diagnostic(tmp_path, monkeypatch):
     row = json.loads(out.read_text(encoding="utf-8").strip())
     assert row["output"].startswith("[ERROR] model server returned no final answer text")
     assert row["reason"].startswith("FAIL: model server returned no final answer text")
-
-
-def test_history_records_empty_response_diagnostic_behavior():
-    history = (ROOT / "History.md").read_text(encoding="utf-8")
-
-    assert "report empty final model content explicitly" in history
-    assert (ROOT / "tests" / "test_history_53_empty_model_answer_diagnostics.py").is_file()

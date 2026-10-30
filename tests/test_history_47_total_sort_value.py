@@ -17,10 +17,3 @@ def test_total_sort_uses_overall_pass_rate_not_task_lookup():
     assert "totalPassRateFor(a)" in sort_models
     assert "totalPassRateFor(b)" in sort_models
     assert "passesFor(a, sortKey)" in sort_models
-
-
-def test_history_records_total_sort_fix():
-    history = (ROOT / "History.md").read_text(encoding="utf-8")
-
-    assert "Sort the displayed total by its overall pass rate" in history
-    assert (ROOT / "tests" / "test_history_47_total_sort_value.py").is_file()

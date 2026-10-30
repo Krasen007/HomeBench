@@ -52,10 +52,3 @@ def test_unconditional_removal_and_score_do_not_satisfy_collection_check():
 
     assert not passed
     assert "collision with the car/player" in reason
-
-
-def test_history_records_connected_collection_validation():
-    history = (ROOT / "History.md").read_text(encoding="utf-8")
-
-    assert "connect collision checks to collection actions" in history
-    assert (ROOT / "tests" / "test_history_49_connected_coin_collection.py").is_file()

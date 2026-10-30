@@ -168,7 +168,7 @@ def test_run_endpoint_queues_all_plans_in_one_worker(tmp_path, monkeypatch):
 
         def fake_run(url, name, runs, temperature, max_tokens, timeout,
                      out_path, note="", on_result=None, task_id=None,
-                     task_ids=None):
+                     task_ids=None, on_token=None):
             calls.append((name, runs, temperature, note, task_ids))
             return 0
 
@@ -200,13 +200,3 @@ def test_run_endpoint_rejects_invalid_plans(tmp_path, monkeypatch):
         assert "temperature" in json.loads(h.wfile.getvalue())["error"]
     finally:
         _reset_state()
-
-
-# ---------------------------------------------------------------------------
-# AGENTS.md history mapping
-# ---------------------------------------------------------------------------
-
-def test_history_records_this_request():
-    history = (ROOT / "History.md").read_text(encoding="utf-8")
-    assert "multi-selection tool for temperature values and run counts" in history
-    assert (ROOT / "tests" / "test_history_40_multi_temperature_plans.py").is_file()

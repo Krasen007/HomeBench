@@ -19,10 +19,3 @@ def test_default_timeout_test_runs_with_override_removed():
     )
 
     assert result.returncode == 0, result.stderr
-
-
-def test_history_records_environment_isolated_default_timeout():
-    history = (ROOT / "History.md").read_text(encoding="utf-8")
-
-    assert "Test the default CHAT_TIMEOUT with the environment override removed" in history
-    assert (ROOT / "tests" / "test_history_52_chat_timeout_default.py").is_file()

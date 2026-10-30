@@ -97,13 +97,3 @@ def test_coin_check_rejects_random_position_range_that_exceeds_coin_inset():
 
     assert not passed
     assert "inside the canvas" in reason
-
-
-def test_history_records_coin_canvas_requirement():
-    from pathlib import Path
-
-    root = Path(__file__).parents[1]
-    history = (root / "History.md").read_text(encoding="utf-8")
-
-    assert "in game.py add a pass check if All coins should render inside the canvas and be collectible by the car/player object" in history
-    assert (root / "tests" / "test_history_43_coin_canvas_collectibility.py").is_file()

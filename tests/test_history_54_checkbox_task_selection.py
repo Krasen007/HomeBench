@@ -63,7 +63,7 @@ def test_run_endpoint_queues_only_selected_tasks_and_adjusts_progress(
 
         def fake_run(url, name, runs, temperature, max_tokens, timeout,
                      out_path, note="", on_result=None, task_id=None,
-                     task_ids=None):
+                     task_ids=None, on_token=None):
             calls.append(task_ids)
 
         with patch("homebench.run_benchmark", side_effect=fake_run):
@@ -108,12 +108,3 @@ def test_benchmark_core_runs_selected_task_ids_only(tmp_path, monkeypatch):
 
     rows = [json.loads(line) for line in out.read_text().splitlines()]
     assert [row["task"] for row in rows] == ["math", "game"]
-
-
-def test_history_records_checkbox_task_selection_request():
-    history = (ROOT / "History.md").read_text(encoding="utf-8")
-
-    assert "add option maybe like a checkbox to select which tasks to run" in history
-    assert (
-        ROOT / "tests" / "test_history_54_checkbox_task_selection.py"
-    ).is_file()

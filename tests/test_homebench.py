@@ -72,6 +72,7 @@ class TestChatReturnsString(unittest.TestCase):
         }).encode("utf-8")
         resp = MagicMock()
         resp.read.return_value = body
+        resp.readline.side_effect = io.BytesIO(body).readline
         resp.__enter__.return_value = resp
         resp.__exit__.return_value = False
         return resp
@@ -91,6 +92,7 @@ class TestChatReturnsString(unittest.TestCase):
         }).encode("utf-8")
         response = MagicMock()
         response.read.return_value = body
+        response.readline.side_effect = io.BytesIO(body).readline
         response.__enter__.return_value = response
         response.__exit__.return_value = False
         mock_urlopen.return_value = response

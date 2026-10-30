@@ -33,6 +33,7 @@ from tasks import TASKS
 # subprocess.run returns as soon as the child process exits — it does NOT
 # wait the full timeout if the work finishes early. These are upper bounds.
 CHAT_TIMEOUT = int(os.environ.get("HOMEBENCH_CHAT_TIMEOUT", "600"))  # seconds
+STREAM_PREVIEW_LIMIT = 100_000
 
 
 # --------------------------------------------------------------------------
@@ -48,31 +49,105 @@ def _sanitize_output(text):
     return text
 
 
-def chat(base_url, prompt, temperature, max_tokens, timeout):
+def _stream_delta(payload):
+    choices = payload.get("choices") or []
+    if not choices or not isinstance(choices[0], dict):
+        return "", ""
+    choice = choices[0]
+    delta = choice.get("delta") or choice.get("message") or {}
+    if not isinstance(delta, dict):
+        return "", ""
+    content = delta.get("content") or ""
+    reasoning = (delta.get("reasoning_content") or delta.get("reasoning")
+                 or delta.get("thinking") or "")
+    return (content if isinstance(content, str) else "",
+            reasoning if isinstance(reasoning, str) else "")
+
+
+def chat(base_url, prompt, temperature, max_tokens, timeout, on_token=None):
     body = json.dumps({
         "model": "local",  # llama-server ignores this; it serves one model
         "messages": [{"role": "user", "content": prompt}],
         "temperature": temperature,
         "max_tokens": max_tokens,
+        "stream": True,
     }).encode()
     req = urllib.request.Request(
         base_url.rstrip("/") + "/v1/chat/completions",
         data=body,
         headers={"Content-Type": "application/json"},
     )
+    content_parts = []
+    reasoning_parts = []
+    response_lines = []
+    completion_metadata = {}
+    usage = {}
+
+    def consume(payload):
+        if isinstance(payload.get("usage"), dict):
+            usage.update(payload["usage"])
+        content, reasoning = _stream_delta(payload)
+        if content:
+            content_parts.append(content)
+        if reasoning:
+            reasoning_parts.append(reasoning)
+        choices = payload.get("choices") or []
+        if choices and isinstance(choices[0], dict):
+            completion_metadata.update(choices[0])
+        if on_token and (content or reasoning):
+            on_token({"content": content, "reasoning": reasoning})
+
     with urllib.request.urlopen(req, timeout=timeout) as resp:
-        response = json.load(resp)
-    choices = response.get("choices") or []
-    if not choices or not isinstance(choices[0], dict):
-        raise ValueError("model server returned no chat completion choices")
-    choice = choices[0]
-    message = choice.get("message") or {}
-    text = message.get("content")
+        while True:
+            line = resp.readline()
+            if not line:
+                break
+            if isinstance(line, bytes):
+                line = line.decode("utf-8", "replace")
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if stripped.startswith("data:"):
+                data = stripped[5:].strip()
+                if data == "[DONE]":
+                    break
+                try:
+                    consume(json.loads(data))
+                except json.JSONDecodeError as exc:
+                    raise ValueError(f"invalid streamed completion data: {exc}") from exc
+            else:
+                response_lines.append(line)
+
+    if not content_parts and not reasoning_parts and response_lines:
+        try:
+            response = json.loads("".join(response_lines))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"invalid model server response: {exc}") from exc
+        choices = response.get("choices") or []
+        if not choices or not isinstance(choices[0], dict):
+            raise ValueError("model server returned no chat completion choices")
+        choice = choices[0]
+        message = choice.get("message") or {}
+        text = message.get("content")
+        reasoning = (message.get("reasoning_content") or message.get("reasoning")
+                     or message.get("thinking") or "")
+        if isinstance(text, str) and text:
+            content_parts.append(text)
+        if isinstance(reasoning, str) and reasoning:
+            reasoning_parts.append(reasoning)
+        completion_metadata = choice
+        if on_token and (text or reasoning):
+            on_token({
+                "content": text if isinstance(text, str) else "",
+                "reasoning": reasoning if isinstance(reasoning, str) else "",
+            })
+        usage.update(response.get("usage") or {})
+
+    text = "".join(content_parts)
     if not isinstance(text, str) or not text.strip():
         details = []
-        if choice.get("finish_reason"):
-            details.append(f"finish_reason={choice['finish_reason']}")
-        usage = response.get("usage") or {}
+        if completion_metadata.get("finish_reason"):
+            details.append(f"finish_reason={completion_metadata['finish_reason']}")
         if usage.get("completion_tokens") is not None:
             details.append(f"completion_tokens={usage['completion_tokens']}")
         detail_text = f" ({', '.join(details)})" if details else ""
@@ -87,7 +162,7 @@ def chat(base_url, prompt, temperature, max_tokens, timeout):
 
 def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                   out_path, note="", on_result=None, task_id=None,
-                  task_ids=None):
+                  task_ids=None, on_token=None):
     """Run tasks `runs` times, append rows to out_path (JSONL).
 
     If ``task_ids`` or ``task_id`` is given, only those tasks are run;
@@ -115,9 +190,17 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
         for task in tasks:
             for run in range(runs):
                 started = time.perf_counter()
+                if on_token:
+                    on_token(task["id"], run, {"start": True})
                 try:
+                    chat_kwargs = {}
+                    if on_token:
+                        chat_kwargs["on_token"] = (
+                            lambda chunk, task_id=task["id"], run=run:
+                            on_token(task_id, run, chunk)
+                        )
                     output = chat(url, task["prompt"], temperature,
-                                  max_tokens, timeout)
+                                  max_tokens, timeout, **chat_kwargs)
                     passed = bool(task["check"](output))
                     reason = task.get("explain", lambda x: "")(output)
                 except Exception as e:  # server down, timeout, bad response...
@@ -167,7 +250,7 @@ def parse_plans(raw):
 
 def run_benchmark_plans(url, name, plans, max_tokens, timeout, out_path,
                         note="", task_id=None, task_ids=None, on_result=None,
-                        on_plan=None):
+                        on_plan=None, on_token=None):
     """Execute every temperature plan in order, one model label per plan.
 
     Each plan runs the selected task(s) ``runs`` times at its temperature.
@@ -189,6 +272,8 @@ def run_benchmark_plans(url, name, plans, max_tokens, timeout, out_path,
         kwargs = {"on_result": on_result, "task_id": task_id}
         if task_ids is not None:
             kwargs["task_ids"] = task_ids
+        if on_token is not None:
+            kwargs["on_token"] = on_token
         run_benchmark(url, label, plan["runs"], plan["temperature"],
                       max_tokens, timeout, out_path,
                       note=_format_note(note, plan["temperature"]), **kwargs)
@@ -324,7 +409,8 @@ def rename_model(path, old_name, new_name):
 WEB_OUT = "results.jsonl"
 lock = threading.Lock()
 state = {"running": False, "model": "", "done": 0, "total": 0, "log": [],
-         "error": None, "plan": 0, "plans": 0}
+         "error": None, "plan": 0, "plans": 0, "stream_task": "",
+         "stream_run": 0, "stream_output": "", "stream_reasoning": ""}
 
 
 def latest_rows():
@@ -453,7 +539,9 @@ class Handler(BaseHTTPRequestHandler):
                 total_runs = sum(p["runs"] for p in plans) * len(task_ids)
                 state.update({"running": True, "model": name, "done": 0,
                               "total": total_runs, "log": [], "error": None,
-                              "plan": 1, "plans": len(plans)})
+                              "plan": 1, "plans": len(plans),
+                              "stream_task": "", "stream_run": 0,
+                              "stream_output": "", "stream_reasoning": ""})
 
             def on_result(task_id, run, passed, reason):
                 with lock:
@@ -469,11 +557,26 @@ class Handler(BaseHTTPRequestHandler):
                         f"queued {label} @ temp {plan['temperature']} × "
                         f"{plan['runs']} run(s)")
 
+            def on_token(task_id, run, chunk):
+                with lock:
+                    if chunk.get("start"):
+                        state["stream_task"] = task_id
+                        state["stream_run"] = run + 1
+                        state["stream_output"] = ""
+                        state["stream_reasoning"] = ""
+                        return
+                    for field in ("output", "reasoning"):
+                        value = chunk.get("content" if field == "output" else "reasoning", "")
+                        if value:
+                            key = f"stream_{field}"
+                            state[key] = (state[key] + value)[-STREAM_PREVIEW_LIMIT:]
+
             def work():
                 try:
                     run_benchmark_plans(url, name, plans, max_tokens, CHAT_TIMEOUT,
                                         WEB_OUT, note=note, task_ids=task_ids,
-                                        on_result=on_result, on_plan=on_plan)
+                                        on_result=on_result, on_plan=on_plan,
+                                        on_token=on_token)
                 finally:
                     with lock:
                         state["running"] = False

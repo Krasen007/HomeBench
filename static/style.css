@@ -158,6 +158,36 @@ input {
   font-size: 12px;
 }
 
+.live-stream {
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.live-stream h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.live-stream details {
+  margin-top: 6px;
+}
+
+.live-stream summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.live-stream-text {
+  max-height: 260px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  overscroll-behavior: contain;
+}
+
 .row {
   display: flex;
   gap: 8px;

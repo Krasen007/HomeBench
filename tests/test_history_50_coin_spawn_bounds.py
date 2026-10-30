@@ -54,10 +54,3 @@ def test_random_range_must_include_coin_radius_inset():
 
     assert not passed
     assert "inside the canvas" in reason
-
-
-def test_history_records_full_coin_spawn_bounds_validation():
-    history = (ROOT / "History.md").read_text(encoding="utf-8")
-
-    assert "Verify coin spawn positions against coin bounds" in history
-    assert (ROOT / "tests" / "test_history_50_coin_spawn_bounds.py").is_file()

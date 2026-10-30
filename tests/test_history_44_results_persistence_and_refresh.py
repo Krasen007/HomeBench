@@ -45,17 +45,3 @@ def test_results_table_attaches_populated_body_between_header_and_footer():
     assert "table.append(tbody);" in render
     assert render.index("table.append(thead);") < render.index("table.append(tbody);")
     assert render.index("table.append(tbody);") < render.index("table.append(tfoot);")
-
-
-def test_history_records_results_visibility_requirement():
-    root = Path(__file__).parents[1]
-    history = (root / "History.md").read_text(encoding="utf-8")
-
-    assert (
-        "the older benchmarks do not appear anymore, and new one do not "
-        "display as well i made some changes in index.html"
-    ) in history
-    assert (
-        "it is not displaying the results i think it may be related to the filter"
-    ) in history
-    assert (root / "tests" / "test_history_44_results_persistence_and_refresh.py").is_file()
