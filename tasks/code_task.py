@@ -5,6 +5,12 @@ import sys
 import tempfile
 
 
+# Upper bound for running the model-generated Python code. subprocess.run
+# returns as soon as the process exits; it does not wait the full timeout
+# when the code finishes early. Override with HOMEBENCH_CODE_TIMEOUT.
+CODE_TIMEOUT = int(os.environ.get("HOMEBENCH_CODE_TIMEOUT", "10"))
+
+
 def _code_status(text):
     if not isinstance(text, str):
         return False, "FAIL: no model output received"
@@ -23,7 +29,8 @@ for s, expected in cases:
         f.write(code + "\n" + tests)
         path = f.name
     try:
-        r = subprocess.run([sys.executable, path], capture_output=True, timeout=10)
+        r = subprocess.run([sys.executable, path], capture_output=True,
+                           timeout=CODE_TIMEOUT)
         if r.returncode == 0:
             return True, "PASS: all palindrome test cases passed"
         err = (r.stderr or r.stdout or b"").decode(errors="replace").strip()

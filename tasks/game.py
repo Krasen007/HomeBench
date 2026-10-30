@@ -23,6 +23,15 @@ def _browser_executable():
         if p:
             return p
     return None
+
+
+# Upper bounds for the browser/runtime checks. subprocess.run returns as
+# soon as the process exits; it does not wait the full timeout when the
+# check finishes early. Override with HOMEBENCH_*_TIMEOUT.
+BROWSER_TIMEOUT = int(os.environ.get("HOMEBENCH_BROWSER_TIMEOUT", "30"))
+JS_CHECK_TIMEOUT = int(os.environ.get("HOMEBENCH_JS_CHECK_TIMEOUT", "10"))
+
+
 def _inject_runtime_checks(html):
     capture = ("<script>window.__errors=[];window.__bench_interaction=null;"
                "window.__bench_refresh_status=function(){var d=document.getElementById('__bench_status');"
@@ -89,7 +98,7 @@ def _game_runtime_status(html):
                 [browser, "--headless=new", "--disable-gpu",
                  "--virtual-time-budget=6000", "--dump-dom", url],
                 capture_output=True, text=True, encoding="utf-8", errors="replace",
-                timeout=30)
+                timeout=BROWSER_TIMEOUT)
         except subprocess.TimeoutExpired:
             return False, "FAIL: runtime check timed out"
         out = r.stdout or ""
@@ -149,7 +158,7 @@ def _game_status(text):
             with os.fdopen(fd, "w") as f:
                 f.write(js)
             r = subprocess.run(["node", "--check", path], capture_output=True,
-                               timeout=10)
+                               timeout=JS_CHECK_TIMEOUT)
             if r.returncode != 0:
                 err = (r.stderr or b"").decode(errors="replace").strip()
                 msg = err.splitlines()[-1] if err else "syntax error"

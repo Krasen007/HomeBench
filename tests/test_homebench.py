@@ -15,6 +15,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from homebench import (
+    CHAT_TIMEOUT,
     chat,
     delete_rows,
     load_rows,
@@ -272,6 +273,15 @@ class TestRunBenchmarkSingleTask(unittest.TestCase):
         written = "".join(call.args[0] for call in mock_file.write.call_args_list)
         tasks_seen = {json.loads(line)["task"] for line in written.strip().splitlines()}
         self.assertEqual(tasks_seen, {t["id"] for t in TASKS})
+
+
+# ---------------------------------------------------------------------------
+# CHAT_TIMEOUT — default LLM chat timeout (300s) and env/CLI override
+# ---------------------------------------------------------------------------
+
+class TestChatTimeout(unittest.TestCase):
+    def test_default_is_300(self):
+        self.assertEqual(CHAT_TIMEOUT, 300)
 
 
 # ---------------------------------------------------------------------------

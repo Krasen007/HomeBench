@@ -28,6 +28,14 @@ from tasks import TASKS
 
 
 # --------------------------------------------------------------------------
+# Timeouts (overridable via environment variables)
+# --------------------------------------------------------------------------
+# subprocess.run returns as soon as the child process exits — it does NOT
+# wait the full timeout if the work finishes early. These are upper bounds.
+CHAT_TIMEOUT = int(os.environ.get("HOMEBENCH_CHAT_TIMEOUT", "600"))  # seconds
+
+
+# --------------------------------------------------------------------------
 # Talking to llama-server (OpenAI-compatible endpoint)
 # --------------------------------------------------------------------------
 
@@ -422,7 +430,7 @@ class Handler(BaseHTTPRequestHandler):
 
             def work():
                 try:
-                    run_benchmark_plans(url, name, plans, max_tokens, 300,
+                    run_benchmark_plans(url, name, plans, max_tokens, CHAT_TIMEOUT,
                                         WEB_OUT, note=note, task_id=task_id,
                                         on_result=on_result, on_plan=on_plan)
                 finally:
@@ -495,7 +503,13 @@ def main():
         description="LLM benchmark for llama-server — opens a web UI at http://localhost:8000")
     ap.add_argument("--port", type=int, default=8000,
                     help="web UI port (default 8000)")
+    ap.add_argument("--timeout", type=int, default=None,
+                    help="LLM chat timeout in seconds "
+                         "(default: HOMEBENCH_CHAT_TIMEOUT or 300)")
     args = ap.parse_args()
+    if args.timeout is not None:
+        global CHAT_TIMEOUT
+        CHAT_TIMEOUT = args.timeout
 
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     print(f"Open http://localhost:{args.port}  (Ctrl+C to stop)")
