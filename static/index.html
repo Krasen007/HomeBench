@@ -280,6 +280,7 @@
         tr.append(rowDelBtn);
         tbody.append(tr);
       });
+      table.append(tbody);
 
       const tfoot = el('tfoot');
       const foot = el('tr');
@@ -617,7 +618,9 @@
         task: $('task').value || undefined,
         note: $('note').value
       });
-      if (res.error) { alert(res.error); $('run').disabled = false; }
+      if (res.error) { alert(res.error); $('run').disabled = false; return; }
+      // Ensure the next poll refreshes results even if this run finishes quickly.
+      wasRunning = true;
       poll();
     };
 

@@ -301,12 +301,8 @@ state = {"running": False, "model": "", "done": 0, "total": 0, "log": [],
 
 
 def latest_rows():
-    """Rows from each model's most recent run."""
-    rows = load_rows(WEB_OUT)
-    latest = {}
-    for r in rows:
-        latest[r["model"]] = max(latest.get(r["model"], 0), r["batch"])
-    return [r for r in rows if r["batch"] == latest[r["model"]]]
+    """Return all saved result rows for the web UI."""
+    return load_rows(WEB_OUT)
 
 
 class Handler(BaseHTTPRequestHandler):

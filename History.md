@@ -239,6 +239,8 @@ i already did some changes but not all
 in 'start.bat' (see below for file content) we should add some code to verify if the user has the needed requirements on their device to run the app
 <file_content path="start.bat">homebench.py</file_content>
 
+the older benchmarks do not appear anymore, and new one do not display as well i made some changes in index.html
+
 Make results-table fields sortable and repeat column labels at the bottom:
 - clicking a results-table column header (model, temperature, any task,
   total, total per run) sorts the models by that field; clicking again
@@ -247,3 +249,5 @@ Make results-table fields sortable and repeat column labels at the bottom:
   the results table so they stay visible when the table is scrolled.
 
 in game.py add a pass check if All coins should render inside the canvas and be collectible by the car/player object
+
+it is not displaying the results i think it may be related to the filter
