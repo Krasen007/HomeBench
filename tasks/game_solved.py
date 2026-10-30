@@ -2,25 +2,7 @@
 
 
 def _solved_status(text):
-    # Accept if it passes the game checks, or if it contains the full solution markers
-    ok, reason = game._game_status(text)
-    if ok:
-        return True, reason
-    # Also be lenient - if it looks like a complete HTML game with all features
-    if isinstance(text, str):
-        html = game._extract_html(text)
-        low = html.lower()
-        required = ("canvas", "car", "coin", "yellow", "red", "green", "grass",
-                    "play", "200")
-        if all(r in low for r in required):
-            if any(s in low for s in ("audiocontext", "oscillator", "audio", "sound",
-                                      "beep", "tone", "webaudio")):
-                if any(s in low for s in ("mousemove", "touchmove", "pointermove",
-                                          "mousedown", "touchstart", "pointerdown")):
-                    if any(s in low for s in ("spawn", "setinterval", "settimeout")):
-                        if "<script" in low and "<html" in low:
-                            return True, "PASS: game solution provided"
-    return ok, reason
+    return game._game_status(text)
 
 
 def check(text):

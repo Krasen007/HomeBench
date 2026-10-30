@@ -59,6 +59,46 @@ def test_coin_check_fails_when_player_cannot_collect_coins():
     assert "collision with the car/player" in reason
 
 
+def test_coin_check_rejects_collection_actions_disconnected_from_collision():
+    js = BOUNDED_GAME_LOGIC.replace(
+        "      coins.splice(i, 1);\n      score++;",
+        "    }\n    coins.splice(i, 1);\n    score++;"
+    )
+
+    passed, reason = game._coin_bounds_and_collection_status(js)
+
+    assert not passed
+    assert "collision with the car/player" in reason
+
+
+def test_coin_check_rejects_unrelated_player_spawn_position_as_coin_bounds():
+    js = BOUNDED_GAME_LOGIC.replace(
+        "x: Math.random() * (canvas.width - 20) + 10",
+        "x: 20"
+    ).replace(
+        "const player = { x: 20, y: 20 };",
+        "const player = { x: Math.random() * (canvas.width - 20) + 10, "
+        "y: Math.random() * (canvas.height - 20) + 10 };"
+    )
+
+    passed, reason = game._coin_bounds_and_collection_status(js)
+
+    assert not passed
+    assert "inside the canvas" in reason
+
+
+def test_coin_check_rejects_random_position_range_that_exceeds_coin_inset():
+    js = BOUNDED_GAME_LOGIC.replace(
+        "Math.random() * (canvas.width - 20) + 10",
+        "Math.random() * canvas.width"
+    )
+
+    passed, reason = game._coin_bounds_and_collection_status(js)
+
+    assert not passed
+    assert "inside the canvas" in reason
+
+
 def test_history_records_coin_canvas_requirement():
     from pathlib import Path
 

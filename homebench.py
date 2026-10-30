@@ -501,7 +501,7 @@ def main():
                     help="web UI port (default 8000)")
     ap.add_argument("--timeout", type=int, default=None,
                     help="LLM chat timeout in seconds "
-                         "(default: HOMEBENCH_CHAT_TIMEOUT or 300)")
+                         "(default: HOMEBENCH_CHAT_TIMEOUT or 600)")
     args = ap.parse_args()
     if args.timeout is not None:
         global CHAT_TIMEOUT

@@ -9,6 +9,8 @@ import tempfile
 # returns as soon as the process exits; it does not wait the full timeout
 # when the code finishes early. Override with HOMEBENCH_CODE_TIMEOUT.
 CODE_TIMEOUT = int(os.environ.get("HOMEBENCH_CODE_TIMEOUT", "10"))
+if CODE_TIMEOUT <= 0:
+    raise ValueError("HOMEBENCH_CODE_TIMEOUT must be a positive integer")
 
 
 def _code_status(text):

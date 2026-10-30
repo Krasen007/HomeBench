@@ -182,6 +182,10 @@
         .map(r => Number(r.elapsed)).filter(Number.isFinite)
         .reduce((a, b) => a + b, 0);
     }
+    function totalPassRateFor(model) {
+      const rs = ROWS.filter(r => r.model === model);
+      return rs.filter(r => r.passed).length / Math.max(rs.length, 1);
+    }
     function sortModels(models) {
       if (!sortKey) return models;
       return [...models].sort((a, b) => {
@@ -192,6 +196,8 @@
           vb = ROWS.find(r => r.model === b)?.temperature ?? 0;
         } else if (sortKey === 'total per run') {
           va = totalSecondsFor(a); vb = totalSecondsFor(b);
+        } else if (sortKey === 'total') {
+          va = totalPassRateFor(a); vb = totalPassRateFor(b);
         } else {
           va = passesFor(a, sortKey) / Math.max(runsFor(a, sortKey), 1);
           vb = passesFor(b, sortKey) / Math.max(runsFor(b, sortKey), 1);

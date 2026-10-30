@@ -256,3 +256,12 @@ it is not displaying the results i think it may be related to the filter
 2. in index.html $('addPlan').onclick = () => addPlanRow(1, 0.6); can you make the next add plan to be temperature 1.0
 
 i meant to add another add temperature so it will be default 0 next add is 0.6 and the next one is 1.0
+
+Fix verified review findings:
+- Sort the displayed total by its overall pass rate, not as a task ID.
+- Reject zero or negative HOMEBENCH_CODE_TIMEOUT values as configuration errors.
+- Verify coin spawn positions against coin bounds and connect collision checks to collection actions.
+- Make game_solved use the strict game checker without a substring fallback.
+- Test the default CHAT_TIMEOUT with the environment override removed.
+
+Keep the current results table layout and update the stale resizable-columns test instead of restoring fixed table layout.

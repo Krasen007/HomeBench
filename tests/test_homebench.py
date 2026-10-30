@@ -10,12 +10,13 @@ Covers fixes for:
 import io
 import json
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
 from homebench import (
-    CHAT_TIMEOUT,
     chat,
     delete_rows,
     load_rows,
@@ -281,7 +282,14 @@ class TestRunBenchmarkSingleTask(unittest.TestCase):
 
 class TestChatTimeout(unittest.TestCase):
     def test_default_is_600(self):
-        self.assertEqual(CHAT_TIMEOUT, 600)
+        env = os.environ.copy()
+        env.pop("HOMEBENCH_CHAT_TIMEOUT", None)
+        result = subprocess.run(
+            [sys.executable, "-c",
+             "from homebench import CHAT_TIMEOUT; print(CHAT_TIMEOUT)"],
+            capture_output=True, text=True, env=env, check=True,
+        )
+        self.assertEqual(result.stdout.strip(), "600")
 
 
 # ---------------------------------------------------------------------------
