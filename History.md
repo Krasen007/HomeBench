@@ -265,3 +265,7 @@ Fix verified review findings:
 - Test the default CHAT_TIMEOUT with the environment override removed.
 
 Keep the current results table layout and update the stale resizable-columns test instead of restoring fixed table layout.
+
+some times when i run game_solved tasks i get something like Run 1: FAIL — 135.3s; FAIL: not an HTML document; Note: temp=0.0; Delete this run; (empty output) but i see the model generate a lot of tokens, why i do not see any result or preview?
+
+Diagnose and report empty final model content explicitly, including available finish-reason and completion-token metadata, instead of saving an empty answer for HTML tasks.

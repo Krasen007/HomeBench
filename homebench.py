@@ -61,7 +61,22 @@ def chat(base_url, prompt, temperature, max_tokens, timeout):
         headers={"Content-Type": "application/json"},
     )
     with urllib.request.urlopen(req, timeout=timeout) as resp:
-        text = json.load(resp)["choices"][0]["message"].get("content") or ""
+        response = json.load(resp)
+    choices = response.get("choices") or []
+    if not choices or not isinstance(choices[0], dict):
+        raise ValueError("model server returned no chat completion choices")
+    choice = choices[0]
+    message = choice.get("message") or {}
+    text = message.get("content")
+    if not isinstance(text, str) or not text.strip():
+        details = []
+        if choice.get("finish_reason"):
+            details.append(f"finish_reason={choice['finish_reason']}")
+        usage = response.get("usage") or {}
+        if usage.get("completion_tokens") is not None:
+            details.append(f"completion_tokens={usage['completion_tokens']}")
+        detail_text = f" ({', '.join(details)})" if details else ""
+        raise ValueError("model server returned no final answer text" + detail_text)
     # Drop reasoning blocks from "thinking" models (e.g. Qwen3, DeepSeek-R1)
     return _sanitize_output(text)
 

@@ -84,11 +84,22 @@ class TestChatReturnsString(unittest.TestCase):
         self.assertEqual(result, "The answer is 42.")
 
     @patch("homebench.urllib.request.urlopen")
-    def test_returns_empty_string_not_none(self, mock_urlopen):
-        mock_urlopen.return_value = self._fake_response("")
-        result = chat("http://localhost:1234", "prompt", 0.0, 8192, 300)
-        self.assertIsInstance(result, str)
-        self.assertEqual(result, "")
+    def test_reports_empty_final_answer_from_model_server(self, mock_urlopen):
+        body = json.dumps({
+            "choices": [{"message": {"content": None}, "finish_reason": "length"}],
+            "usage": {"completion_tokens": 8192},
+        }).encode("utf-8")
+        response = MagicMock()
+        response.read.return_value = body
+        response.__enter__.return_value = response
+        response.__exit__.return_value = False
+        mock_urlopen.return_value = response
+
+        with self.assertRaisesRegex(
+                ValueError,
+                "model server returned no final answer text "
+                r"\(finish_reason=length, completion_tokens=8192\)"):
+            chat("http://localhost:1234", "prompt", 0.0, 8192, 300)
 
     @patch("homebench.urllib.request.urlopen")
     def test_strips_reasoning_blocks(self, mock_urlopen):
