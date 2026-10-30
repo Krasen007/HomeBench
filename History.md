@@ -251,3 +251,8 @@ Make results-table fields sortable and repeat column labels at the bottom:
 in game.py add a pass check if All coins should render inside the canvas and be collectible by the car/player object
 
 it is not displaying the results i think it may be related to the filter
+
+1. make the columns resizable
+2. in index.html $('addPlan').onclick = () => addPlanRow(1, 0.6); can you make the next add plan to be temperature 1.0
+
+i meant to add another add temperature so it will be default 0 next add is 0.6 and the next one is 1.0

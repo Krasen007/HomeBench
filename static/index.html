@@ -74,6 +74,7 @@
   <script>
     const $ = id => document.getElementById(id);
     let TASKS = [], ROWS = [], wasRunning = false;
+    const columnWidths = new Map();
     let detailContext = null, detailPage = 0;
     let detailRunsSignature = '', detailPagerSignature = '';
     const RUNS_PER_PAGE = 1;
@@ -200,6 +201,43 @@
       });
     }
 
+    function resizeHandle(th, col, index) {
+      const handle = el('span');
+      handle.className = 'column-resize';
+      handle.tabIndex = 0;
+      handle.setAttribute('role', 'separator');
+      handle.setAttribute('aria-orientation', 'vertical');
+      handle.setAttribute('aria-label', `Resize ${th.textContent.trim() || 'actions'} column`);
+      const resizeTo = width => {
+        const clamped = Math.max(56, width);
+        columnWidths.set(index, clamped);
+        col.style.width = `${clamped}px`;
+      };
+      handle.onpointerdown = event => {
+        event.preventDefault();
+        event.stopPropagation();
+        handle.setPointerCapture(event.pointerId);
+        handle.dataset.startX = String(event.clientX);
+        handle.dataset.startWidth = String(col.getBoundingClientRect().width);
+      };
+      handle.onpointermove = event => {
+        if (!handle.hasPointerCapture(event.pointerId)) return;
+        resizeTo(Number(handle.dataset.startWidth) + event.clientX - Number(handle.dataset.startX));
+      };
+      handle.onpointerup = event => {
+        if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
+      };
+      handle.onclick = event => event.stopPropagation();
+      handle.onkeydown = event => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+        event.preventDefault();
+        event.stopPropagation();
+        const width = col.getBoundingClientRect().width;
+        resizeTo(width + (event.key === 'ArrowRight' ? 16 : -16));
+      };
+      th.append(handle);
+    }
+
     function render() {
       const models = sortModels([...new Set(ROWS.map(r => r.model))]);
       const table = $('table');
@@ -216,19 +254,30 @@
       }
       if (!models.length) return;
 
+      const colgroup = el('colgroup');
+      const columnCount = TASKS.length + 5;
+      for (let i = 0; i < columnCount; i++) {
+        const col = document.createElement('col');
+        const defaultWidth = i === 0 ? 190 : i === 1 ? 76 : i === columnCount - 1 ? 56 : 112;
+        col.style.width = `${columnWidths.get(i) || defaultWidth}px`;
+        colgroup.append(col);
+      }
+      table.append(colgroup);
+
       const thead = el('thead');
       const head = el('tr');
-      const sortable = (cell, key) => {
+      const sortable = (cell, key, index) => {
         cell.className = 'sortable' + (sortKey === key ? ' sorted' : '');
         cell.onclick = () => sortBy(key);
         if (sortKey === key) cell.append(el('span', sortDir === 1 ? ' ▲' : ' ▼', 'sort-dir'));
+        resizeHandle(cell, colgroup.children[index], index);
         return cell;
       };
-      head.append(sortable(el('th', 'model'), 'model'));
-      head.append(sortable(el('th', 'temp'), 'temp'));
-      TASKS.forEach(t => head.append(sortable(el('th', t.id), t.id)));
-      head.append(sortable(el('th', 'total'), 'total'));
-      head.append(sortable(el('th', 'total per run'), 'total per run'));
+      head.append(sortable(el('th', 'model'), 'model', 0));
+      head.append(sortable(el('th', 'temp'), 'temp', 1));
+      TASKS.forEach((t, i) => head.append(sortable(el('th', t.id), t.id, i + 2)));
+      head.append(sortable(el('th', 'total'), 'total', TASKS.length + 2));
+      head.append(sortable(el('th', 'total per run'), 'total per run', TASKS.length + 3));
       head.append(el('th', ''));
       thead.append(head);
       table.append(thead);
@@ -624,7 +673,11 @@
       poll();
     };
 
-    $('addPlan').onclick = () => addPlanRow(1, 0.6);
+    let nextPlanTemperature = 0.6;
+    $('addPlan').onclick = () => {
+      addPlanRow(1, nextPlanTemperature);
+      nextPlanTemperature = 1.0;
+    };
 
     $('clear').onclick = async () => {
       if (!confirm('Delete all saved results?')) return;
