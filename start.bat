@@ -60,6 +60,9 @@ for %%p in (
     )
 )
 
+if defined CHROME_BIN if exist "!CHROME_BIN!" set "BROWSER_FOUND=!CHROME_BIN!"
+if defined BROWSER_BIN if exist "!BROWSER_BIN!" set "BROWSER_FOUND=!BROWSER_BIN!"
+
 if defined BROWSER_FOUND (
     echo OK: !BROWSER_FOUND!
 ) else (
