@@ -687,7 +687,7 @@
           || s.stream_output || s.stream_reasoning);
         if (s.running || s.stream_task) {
           $('liveStreamTitle').textContent = s.stream_task
-            ? `Live model output — ${s.model} / ${s.stream_task} run ${s.stream_run}`
+            ? `Live model output — ${s.model} / ${s.stream_task} run ${s.stream_run} (${s.stream_phase || 'generating'})`
             : `Live model output — ${s.model}`;
         }
         if (s.running || s.stream_task) {

@@ -24,7 +24,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from tasks import TASKS
+from tasks import TASKS, weather
 
 
 # --------------------------------------------------------------------------
@@ -201,8 +201,61 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                         )
                     output = chat(url, task["prompt"], temperature,
                                   max_tokens, timeout, **chat_kwargs)
-                    passed = bool(task["check"](output))
-                    reason = task.get("explain", lambda x: "")(output)
+                    if task["id"] == weather.ID:
+                        tool_request = weather.parse_tool_request(output)
+                        if tool_request is None:
+                            passed = False
+                            reason = (
+                                "FAIL: no supported web_fetch request was "
+                                "returned; the live weather tool was not run"
+                            )
+                        else:
+                            try:
+                                observation = weather.execute_tool_request(
+                                    tool_request, timeout=min(timeout, 20))
+                            except Exception as exc:
+                                output = (
+                                    "Weather tool request:\n"
+                                    + json.dumps(tool_request, indent=2)
+                                    + "\n\nWeather tool error:\n"
+                                    + str(exc)
+                                )
+                                passed = False
+                                reason = "FAIL: weather tool could not be executed: " + str(exc)
+                            else:
+                                if on_token:
+                                    on_token(task["id"], run, {
+                                        "start": True,
+                                        "phase": "final answer after web_fetch",
+                                    })
+                                    on_token(task["id"], run, {
+                                        "content": "Executed web_fetch. "
+                                        f"Observed temperature: {observation['temperature_c']}°C\n",
+                                        "reasoning": "",
+                                    })
+                                answer_kwargs = {}
+                                if on_token:
+                                    answer_kwargs["on_token"] = (
+                                        lambda chunk, task_id=task["id"], run=run:
+                                        on_token(task_id, run, chunk)
+                                    )
+                                answer = chat(
+                                    url, weather.follow_up_prompt(observation),
+                                    temperature, max_tokens, timeout,
+                                    **answer_kwargs)
+                                output = (
+                                    "Weather tool request:\n"
+                                    + json.dumps(tool_request, indent=2)
+                                    + "\n\nWeather tool result:\n"
+                                    + json.dumps(observation, indent=2)
+                                    + "\n\nFinal answer:\n"
+                                    + answer
+                                )
+                                passed, reason = weather._weather_status(
+                                    answer, observation["temperature_c"])
+                    else:
+                        passed = bool(task["check"](output))
+                        reason = task.get("explain", lambda x: "")(output)
                 except Exception as e:  # server down, timeout, bad response...
                     output, passed, reason = f"[ERROR] {e}", False, "FAIL: " + str(e)
                 elapsed = round(time.perf_counter() - started, 3)
@@ -410,7 +463,8 @@ WEB_OUT = "results.jsonl"
 lock = threading.Lock()
 state = {"running": False, "model": "", "done": 0, "total": 0, "log": [],
          "error": None, "plan": 0, "plans": 0, "stream_task": "",
-         "stream_run": 0, "stream_output": "", "stream_reasoning": ""}
+         "stream_run": 0, "stream_phase": "", "stream_output": "",
+         "stream_reasoning": ""}
 
 
 def latest_rows():
@@ -541,7 +595,8 @@ class Handler(BaseHTTPRequestHandler):
                               "total": total_runs, "log": [], "error": None,
                               "plan": 1, "plans": len(plans),
                               "stream_task": "", "stream_run": 0,
-                              "stream_output": "", "stream_reasoning": ""})
+                              "stream_phase": "", "stream_output": "",
+                              "stream_reasoning": ""})
 
             def on_result(task_id, run, passed, reason):
                 with lock:
@@ -562,6 +617,7 @@ class Handler(BaseHTTPRequestHandler):
                     if chunk.get("start"):
                         state["stream_task"] = task_id
                         state["stream_run"] = run + 1
+                        state["stream_phase"] = chunk.get("phase", "generating")
                         state["stream_output"] = ""
                         state["stream_reasoning"] = ""
                         return

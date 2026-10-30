@@ -38,6 +38,23 @@ def test_weather_task_rejects_no_temperature():
     assert weather.explain("It is sunny in Varna today.").startswith("FAIL:")
 
 
+def test_weather_task_requires_temperature_after_tool_call():
+    output = '''{
+      "tool": "web_fetch",
+      "args": {"url": "https://wttr.in/Varna?format=j2"}
+    }'''
+
+    assert not weather.check(output)
+    reason = weather.explain(output)
+    assert "no temperature in degrees Celsius" in reason
+
+
+def test_weather_prompt_describes_supported_executable_tool():
+    assert "HomeBench executes one constrained web_fetch request" in weather.PROMPT
+    assert "https://wttr.in/Varna?format=j2" in weather.PROMPT
+    assert "Do not request shell commands or any other tool." in weather.PROMPT
+
+
 def test_weather_task_rejects_empty_output():
     """Empty output should fail."""
     assert not weather.check("")
