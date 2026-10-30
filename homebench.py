@@ -392,7 +392,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/run":
             name = (body.get("name") or "").strip()
             url = (body.get("url") or "").strip()
-            max_tokens = int(body.get("max_tokens", 8192))
+            max_tokens = int(body.get("max_tokens", 16384))
             note = body.get("note", "")
             task_id = (body.get("task") or "").strip() or None
             if task_id and task_id not in {t["id"] for t in TASKS}:
