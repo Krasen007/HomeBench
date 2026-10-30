@@ -79,7 +79,7 @@ class TestChatReturnsString(unittest.TestCase):
     @patch("homebench.urllib.request.urlopen")
     def test_returns_plain_text(self, mock_urlopen):
         mock_urlopen.return_value = self._fake_response("The answer is 42.")
-        result = chat("http://localhost:1234", "prompt", 0.0, 16384, 600)
+        result = chat("http://localhost:1234", "prompt", 0.0, 32768, 600)
         self.assertIsInstance(result, str)
         self.assertEqual(result, "The answer is 42.")
 
@@ -87,7 +87,7 @@ class TestChatReturnsString(unittest.TestCase):
     def test_reports_empty_final_answer_from_model_server(self, mock_urlopen):
         body = json.dumps({
             "choices": [{"message": {"content": None}, "finish_reason": "length"}],
-            "usage": {"completion_tokens": 16384},
+            "usage": {"completion_tokens": 32768},
         }).encode("utf-8")
         response = MagicMock()
         response.read.return_value = body
@@ -98,15 +98,15 @@ class TestChatReturnsString(unittest.TestCase):
         with self.assertRaisesRegex(
                 ValueError,
                 "model server returned no final answer text "
-                r"\(finish_reason=length, completion_tokens=16384\)"):
-            chat("http://localhost:1234", "prompt", 0.0, 16384, 600)
+                r"\(finish_reason=length, completion_tokens=32768\)"):
+            chat("http://localhost:1234", "prompt", 0.0, 32768, 600)
 
     @patch("homebench.urllib.request.urlopen")
     def test_strips_reasoning_blocks(self, mock_urlopen):
         mock_urlopen.return_value = self._fake_response(
             "thinking...\nAnswer: 2.80"
         )
-        result = chat("http://localhost:1234", "prompt", 0.0, 16384, 600)
+        result = chat("http://localhost:1234", "prompt", 0.0, 32768, 600)
         self.assertIsInstance(result, str)
 
 
@@ -204,7 +204,7 @@ class TestWorkResetsState(unittest.TestCase):
             "url": "http://localhost:1234",
             "runs": 1,
             "temperature": 0.7,
-            "max_tokens": 16384,
+            "max_tokens": 32768,
         }).encode())
         work = self._capture_work_function(h, h.rfile.getvalue())
 
@@ -220,7 +220,7 @@ class TestWorkResetsState(unittest.TestCase):
             "url": "http://localhost:1234",
             "runs": 1,
             "temperature": 0.7,
-            "max_tokens": 16384,
+            "max_tokens": 32768,
         }).encode())
         work = self._capture_work_function(h, h.rfile.getvalue())
 
@@ -257,7 +257,7 @@ class TestRunBenchmarkSingleTask(unittest.TestCase):
             mock_open.return_value.__enter__.return_value = mock_file
             run_benchmark(
                 "http://localhost:1234", "test-model", runs=2,
-                temperature=0.0, max_tokens=16384, timeout=600,
+                temperature=0.0, max_tokens=32768, timeout=600,
                 out_path="/tmp/results.jsonl", task_id="math",
                 on_result=lambda *a: rows.append(a),
             )
@@ -277,7 +277,7 @@ class TestRunBenchmarkSingleTask(unittest.TestCase):
             mock_open.return_value.__enter__.return_value = mock_file
             run_benchmark(
                 "http://localhost:1234", "test-model", runs=1,
-                temperature=0.0, max_tokens=16384, timeout=600,
+                temperature=0.0, max_tokens=32768, timeout=600,
                 out_path="/tmp/results.jsonl",
             )
         # 8 tasks * 1 run each.

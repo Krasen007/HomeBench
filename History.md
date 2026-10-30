@@ -269,3 +269,7 @@ Keep the current results table layout and update the stale resizable-columns tes
 some times when i run game_solved tasks i get something like Run 1: FAIL — 135.3s; FAIL: not an HTML document; Note: temp=0.0; Delete this run; (empty output) but i see the model generate a lot of tokens, why i do not see any result or preview?
 
 Diagnose and report empty final model content explicitly, including available finish-reason and completion-token metadata, instead of saving an empty answer for HTML tasks.
+
+add option maybe like a checkbox to select which tasks to run if i want to run only a selection
+
+Replace single-task dropdown with checked task-selection boxes, allow running any non-empty subset, preserve legacy API task field, and set progress totals from selected tasks.

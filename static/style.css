@@ -91,6 +91,46 @@ input {
   grid-column: span 2;
 }
 
+.task-picker {
+  min-width: 0;
+  margin: 0;
+  padding: 8px 10px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.task-picker legend {
+  padding: 0 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.task-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+
+.task-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--fg);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.task-option input {
+  width: auto;
+  margin: 0;
+}
+
+.task-select-all {
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
 .plans {
   display: flex;
   flex-direction: column;

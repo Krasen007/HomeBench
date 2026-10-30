@@ -23,11 +23,11 @@
         <div class="wide"><label for="url">llama-server URL</label>
           <input id="url" value="http://localhost:8080">
         </div>
-        <div><label for="task">Task (run one, or all)</label>
-          <select id="task">
-            <option value="">All tasks</option>
-          </select>
-        </div>
+        <fieldset class="wide task-picker">
+          <legend>Tasks to run</legend>
+          <label class="task-option task-select-all"><input id="taskAll" type="checkbox" checked> Select all</label>
+          <div id="taskOptions" class="task-options"></div>
+        </fieldset>
         <div class="wide"><label>Temperature plans</label>
           <div id="plans" class="plans"></div>
           <div class="row" style="margin-top:8px;">
@@ -37,7 +37,7 @@
           </div>
         </div>
         <div><label for="maxtok">Max tokens</label>
-          <input id="maxtok" type="number" min="64" step="64" value="16384">
+          <input id="maxtok" type="number" min="64" step="64" value="32768">
         </div>
         <div><label for="note">Notes for this run</label>
           <textarea id="note" rows="2" placeholder="optional notes saved with results"></textarea>
@@ -159,6 +159,17 @@
         runs: Number(row.querySelector('.plan-runs').value),
         temperature: Number(row.querySelector('.plan-temp').value)
       }));
+    }
+
+    function selectedTaskIds() {
+      return [...document.querySelectorAll('#taskOptions input:checked')].map(input => input.value);
+    }
+
+    function syncTaskSelectAll() {
+      const options = [...document.querySelectorAll('#taskOptions input[type="checkbox"]')];
+      const selected = options.filter(input => input.checked).length;
+      $('taskAll').checked = options.length > 0 && selected === options.length;
+      $('taskAll').indeterminate = selected > 0 && selected < options.length;
     }
 
     let sortKey = '', sortDir = 1;
@@ -655,6 +666,8 @@
     $('run').onclick = async () => {
       const plans = readPlans();
       if (!plans.length) { alert('Add at least one temperature plan.'); return; }
+      const tasks = selectedTaskIds();
+      if (!tasks.length) { alert('Select at least one task to run.'); return; }
       for (const p of plans) {
         if (!Number.isFinite(p.runs) || p.runs < 1 || p.runs > 50) {
           alert('Runs per plan must be a whole number between 1 and 50.');
@@ -670,7 +683,7 @@
       const res = await api('/api/run', {
         name: $('name').value, url: $('url').value, plans,
         max_tokens: $('maxtok').value,
-        task: $('task').value || undefined,
+        tasks,
         note: $('note').value
       });
       if (res.error) { alert(res.error); $('run').disabled = false; return; }
@@ -713,11 +726,20 @@
       addPlanRow(1, 0.0);
       const taskSel = $('task');
       for (const t of TASKS) {
-        const o = document.createElement('option');
-        o.value = t.id;
-        o.textContent = t.id;
-        taskSel.appendChild(o);
+        const label = el('label', undefined, 'task-option');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = t.id;
+        checkbox.checked = true;
+        checkbox.onchange = syncTaskSelectAll;
+        label.append(checkbox, document.createTextNode(t.id));
+        $('taskOptions').append(label);
       }
+      $('taskAll').onchange = () => {
+        document.querySelectorAll('#taskOptions input[type="checkbox"]')
+          .forEach(input => { input.checked = $('taskAll').checked; });
+        syncTaskSelectAll();
+      };
       await loadResults(); await poll(); setInterval(poll, 1000);
     })();
   </script>

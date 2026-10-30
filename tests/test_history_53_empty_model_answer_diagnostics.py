@@ -27,14 +27,14 @@ def test_chat_reports_empty_content_with_available_completion_metadata():
             "message": {"content": None},
             "finish_reason": "length",
         }],
-        "usage": {"completion_tokens": 16384},
+        "usage": {"completion_tokens": 32768},
     }
 
     with patch("homebench.urllib.request.urlopen", return_value=_response(payload)):
         with pytest.raises(
                 ValueError,
-                match=r"no final answer text \(finish_reason=length, completion_tokens=16384\)"):
-            homebench.chat("http://localhost:1234", "prompt", 0, 16384, 600)
+                match=r"no final answer text \(finish_reason=length, completion_tokens=32768\)"):
+            homebench.chat("http://localhost:1234", "prompt", 0, 32768, 600)
 
 
 def test_run_benchmark_persists_response_diagnostic(tmp_path, monkeypatch):
@@ -54,7 +54,7 @@ def test_run_benchmark_persists_response_diagnostic(tmp_path, monkeypatch):
     out = tmp_path / "results.jsonl"
 
     homebench.run_benchmark(
-        "http://localhost:1234", "model", 1, 0, 16384, 600, out,
+        "http://localhost:1234", "model", 1, 0, 32768, 600, out,
     )
 
     row = json.loads(out.read_text(encoding="utf-8").strip())

@@ -167,16 +167,17 @@ def test_run_endpoint_queues_all_plans_in_one_worker(tmp_path, monkeypatch):
         calls = []
 
         def fake_run(url, name, runs, temperature, max_tokens, timeout,
-                     out_path, note="", on_result=None, task_id=None):
-            calls.append((name, runs, temperature, note))
+                     out_path, note="", on_result=None, task_id=None,
+                     task_ids=None):
+            calls.append((name, runs, temperature, note, task_ids))
             return 0
 
         with patch("homebench.run_benchmark", side_effect=fake_run):
             thread.call_args.kwargs["target"]()
 
         assert calls == [
-            ("qwen", 1, 0.0, "temp=0.0"),
-            ("qwen (1)", 3, 0.6, "temp=0.6"),
+            ("qwen", 1, 0.0, "temp=0.0", ["math"]),
+            ("qwen (1)", 3, 0.6, "temp=0.6", ["math"]),
         ]
         assert homebench.state["running"] is False
     finally:
@@ -209,4 +210,3 @@ def test_history_records_this_request():
     history = (ROOT / "History.md").read_text(encoding="utf-8")
     assert "multi-selection tool for temperature values and run counts" in history
     assert (ROOT / "tests" / "test_history_40_multi_temperature_plans.py").is_file()
-

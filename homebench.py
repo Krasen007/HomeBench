@@ -86,11 +86,12 @@ def chat(base_url, prompt, temperature, max_tokens, timeout):
 # --------------------------------------------------------------------------
 
 def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
-                  out_path, note="", on_result=None, task_id=None):
+                  out_path, note="", on_result=None, task_id=None,
+                  task_ids=None):
     """Run tasks `runs` times, append rows to out_path (JSONL).
 
-    If ``task_id`` is given, only that task is run; otherwise every task
-    in ``TASKS`` is run.
+    If ``task_ids`` or ``task_id`` is given, only those tasks are run;
+    otherwise every task in ``TASKS`` is run.
 
     on_result(task_id, run_index, passed, reason) is called after each
     task-run so callers can print progress or update UI state.
@@ -98,9 +99,17 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
     single task run (chat request plus checker).
     Returns the batch id.
     """
-    tasks = [t for t in TASKS if t["id"] == task_id] if task_id else TASKS
-    if task_id and not tasks:
-        raise ValueError(f"unknown task id: {task_id!r}")
+    selected_ids = task_ids if task_ids is not None else ([task_id] if task_id else None)
+    tasks = ([t for t in TASKS if t["id"] in selected_ids]
+             if selected_ids is not None else TASKS)
+    found_ids = {t["id"] for t in tasks}
+    unknown_ids = set(selected_ids or ()) - {t["id"] for t in TASKS}
+    if unknown_ids:
+        raise ValueError(f"unknown task id(s): {', '.join(sorted(unknown_ids))}")
+    if selected_ids is not None and not tasks:
+        raise ValueError("at least one task must be selected")
+    if selected_ids is not None and found_ids != set(selected_ids):
+        raise ValueError("invalid task selection")
     batch = int(time.time())
     with open(out_path, "a") as out:
         for task in tasks:
@@ -157,7 +166,8 @@ def parse_plans(raw):
 
 
 def run_benchmark_plans(url, name, plans, max_tokens, timeout, out_path,
-                        note="", task_id=None, on_result=None, on_plan=None):
+                        note="", task_id=None, task_ids=None, on_result=None,
+                        on_plan=None):
     """Execute every temperature plan in order, one model label per plan.
 
     Each plan runs the selected task(s) ``runs`` times at its temperature.
@@ -176,10 +186,12 @@ def run_benchmark_plans(url, name, plans, max_tokens, timeout, out_path,
     for index, (label, plan) in enumerate(jobs):
         if on_plan:
             on_plan(index, label, plan)
+        kwargs = {"on_result": on_result, "task_id": task_id}
+        if task_ids is not None:
+            kwargs["task_ids"] = task_ids
         run_benchmark(url, label, plan["runs"], plan["temperature"],
                       max_tokens, timeout, out_path,
-                      note=_format_note(note, plan["temperature"]),
-                      on_result=on_result, task_id=task_id)
+                      note=_format_note(note, plan["temperature"]), **kwargs)
     return jobs
 
 
@@ -392,12 +404,31 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/run":
             name = (body.get("name") or "").strip()
             url = (body.get("url") or "").strip()
-            max_tokens = int(body.get("max_tokens", 16384))
+            max_tokens = int(body.get("max_tokens", 32768))
             note = body.get("note", "")
             task_id = (body.get("task") or "").strip() or None
-            if task_id and task_id not in {t["id"] for t in TASKS}:
+            known_task_ids = {t["id"] for t in TASKS}
+            if "tasks" in body:
+                raw_task_ids = body["tasks"]
+                if (not isinstance(raw_task_ids, list)
+                        or not raw_task_ids
+                        or any(not isinstance(task, str) for task in raw_task_ids)):
+                    self.send({"error": "tasks must be a non-empty list of task ids"}, code=400)
+                    return
+                unknown_ids = set(raw_task_ids) - known_task_ids
+                if unknown_ids:
+                    self.send({"error": f"unknown task id(s): {', '.join(sorted(unknown_ids))}"}, code=400)
+                    return
+                if len(set(raw_task_ids)) != len(raw_task_ids):
+                    self.send({"error": "tasks must not contain duplicates"}, code=400)
+                    return
+                task_ids = [t["id"] for t in TASKS if t["id"] in raw_task_ids]
+                task_id = None
+            elif task_id and task_id not in known_task_ids:
                 self.send({"error": f"unknown task id: {task_id!r}"}, code=400)
                 return
+            else:
+                task_ids = [task_id] if task_id else [t["id"] for t in TASKS]
             # New multi-temperature requests send "plans"; the legacy single
             # temperature/runs fields are still accepted for API clients.
             raw_plans = body.get("plans")
@@ -419,8 +450,7 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 existing = {r["model"] for r in load_rows(WEB_OUT)}
                 name = unique_model_name(name, existing)
-                total_tasks = 1 if task_id else len(TASKS)
-                total_runs = sum(p["runs"] for p in plans) * total_tasks
+                total_runs = sum(p["runs"] for p in plans) * len(task_ids)
                 state.update({"running": True, "model": name, "done": 0,
                               "total": total_runs, "log": [], "error": None,
                               "plan": 1, "plans": len(plans)})
@@ -442,7 +472,7 @@ class Handler(BaseHTTPRequestHandler):
             def work():
                 try:
                     run_benchmark_plans(url, name, plans, max_tokens, CHAT_TIMEOUT,
-                                        WEB_OUT, note=note, task_id=task_id,
+                                        WEB_OUT, note=note, task_ids=task_ids,
                                         on_result=on_result, on_plan=on_plan)
                 finally:
                     with lock:
