@@ -19,7 +19,16 @@ def test_runtime_checker_is_defined_and_checks_interaction_and_late_errors():
 
 def test_inconclusive_runtime_does_not_count_as_a_game_pass(monkeypatch):
     html = ("<html><canvas></canvas> car coin yellow red green grass Play 200 "
-            "sound mousemove spawn</html>")
+            "sound mousemove spawn<script>"
+            "const canvas={width:400,height:300},coins=[],car={x:0,y:0};"
+            "let score=0;"
+            "function spawn(){const coin={radius:10,"
+            "x:Math.random()*(canvas.width-20)+10,"
+            "y:Math.random()*(canvas.height-20)+10};coins.push(coin);}"
+            "function collect(){for(let i=coins.length-1;i>=0;i--){"
+            "const coin=coins[i];"
+            "if(Math.hypot(car.x-coin.x,car.y-coin.y)<coin.radius+10){"
+            "coins.splice(i,1);score++;}}}</script></html>")
     monkeypatch.setattr(game, "_game_runtime_status",
                         lambda _: (None, "runtime check skipped (no browser found)"))
 
@@ -63,7 +72,26 @@ sound mousemove spawn</body></html>"""
 def test_game_validator_checks_extracted_document_not_markdown_wrapper(monkeypatch):
     document = """<!doctype html>
 <html><body><canvas></canvas>car coin yellow red green grass Play 200
-sound mousemove spawn</body></html>"""
+sound mousemove spawn
+<script>
+const canvas={width:400,height:300}, coins=[], car={x:0,y:0};
+let score=0;
+function spawn(){
+  const coin={radius:10,
+    x:Math.random()*(canvas.width-20)+10,
+    y:Math.random()*(canvas.height-20)+10};
+  coins.push(coin);
+}
+function collect(){
+  for(let i=coins.length-1;i>=0;i--){
+    const coin=coins[i];
+    if(Math.hypot(car.x-coin.x,car.y-coin.y)<coin.radius+10){
+      coins.splice(i,1);
+      score++;
+    }
+  }
+}
+</script></body></html>"""
     monkeypatch.setattr(game, "_game_runtime_status",
                         lambda html: (True, "PASS: runtime ok"))
     for output in ("```HTML\n" + document + "\n```",

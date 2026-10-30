@@ -44,6 +44,7 @@ ADDITIONAL MANDATORY IMPLEMENTATION REQUIREMENTS (to pass all tests):
 - After collecting 5 to 10 yellow coins (random each cycle, 5-10), spawn a Red coin
 - After collecting 2 red coins total, spawn a cluster of 5 Green coins
 - Track total coins collected; game ends when total collected >= 200
+- Spawn every coin with enough inset from all four canvas edges for the whole coin to remain visible, and implement collision detection so the car/player can collect every coin
 - Generate sounds for coin pickup using Web Audio API (AudioContext/oscillator) with different sounds for yellow, red, green coins
 - Use setInterval/setTimeout for spawning logic
 - All JavaScript inline in <script> tags (no external src scripts)

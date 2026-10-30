@@ -300,3 +300,33 @@ td.cell:hover {
   color: var(--muted);
   margin: 10px 0 0;
 }
+
+/* Sortable results-table column labels */
+.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.sortable:hover {
+  background: var(--bg);
+}
+.sorted {
+  font-weight: 700;
+}
+.sort-dir {
+  font-size: 11px;
+  opacity: 0.7;
+  margin-left: 4px;
+}
+tfoot td {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+  border-top: 2px solid var(--border);
+  background: var(--bg);
+}
+tfoot td.sortable {
+  cursor: pointer;
+}
+tfoot td.sortable:hover {
+  background: var(--card);
+}

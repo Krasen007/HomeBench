@@ -160,8 +160,48 @@
       }));
     }
 
+    let sortKey = '', sortDir = 1;
+
+    function sortBy(key) {
+      if (!key) return;
+      if (sortKey === key) sortDir = -sortDir;
+      else { sortKey = key; sortDir = 1; }
+      render();
+    }
+
+    function passesFor(model, taskId) {
+      const rs = ROWS.filter(r => r.model === model && r.task === taskId);
+      return rs.filter(r => r.passed).length;
+    }
+    function runsFor(model, taskId) {
+      return ROWS.filter(r => r.model === model && r.task === taskId).length;
+    }
+    function totalSecondsFor(model) {
+      return ROWS.filter(r => r.model === model)
+        .map(r => Number(r.elapsed)).filter(Number.isFinite)
+        .reduce((a, b) => a + b, 0);
+    }
+    function sortModels(models) {
+      if (!sortKey) return models;
+      return [...models].sort((a, b) => {
+        let va, vb;
+        if (sortKey === 'model') { va = a; vb = b; }
+        else if (sortKey === 'temp') {
+          va = ROWS.find(r => r.model === a)?.temperature ?? 0;
+          vb = ROWS.find(r => r.model === b)?.temperature ?? 0;
+        } else if (sortKey === 'total per run') {
+          va = totalSecondsFor(a); vb = totalSecondsFor(b);
+        } else {
+          va = passesFor(a, sortKey) / Math.max(runsFor(a, sortKey), 1);
+          vb = passesFor(b, sortKey) / Math.max(runsFor(b, sortKey), 1);
+        }
+        const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+        return cmp * sortDir;
+      });
+    }
+
     function render() {
-      const models = [...new Set(ROWS.map(r => r.model))];
+      const models = sortModels([...new Set(ROWS.map(r => r.model))]);
       const table = $('table');
       table.replaceChildren();
       const empty = $('empty');
@@ -176,15 +216,24 @@
       }
       if (!models.length) return;
 
+      const thead = el('thead');
       const head = el('tr');
-      head.append(el('th', 'model'));
-      head.append(el('th', 'temp'));
-      TASKS.forEach(t => head.append(el('th', t.id)));
-      head.append(el('th', 'total'));
-      head.append(el('th', 'total per run'));
+      const sortable = (cell, key) => {
+        cell.className = 'sortable' + (sortKey === key ? ' sorted' : '');
+        cell.onclick = () => sortBy(key);
+        if (sortKey === key) cell.append(el('span', sortDir === 1 ? ' ▲' : ' ▼', 'sort-dir'));
+        return cell;
+      };
+      head.append(sortable(el('th', 'model'), 'model'));
+      head.append(sortable(el('th', 'temp'), 'temp'));
+      TASKS.forEach(t => head.append(sortable(el('th', t.id), t.id)));
+      head.append(sortable(el('th', 'total'), 'total'));
+      head.append(sortable(el('th', 'total per run'), 'total per run'));
       head.append(el('th', ''));
-      table.append(head);
+      thead.append(head);
+      table.append(thead);
 
+      const tbody = el('tbody');
       models.forEach(m => {
         const tr = el('tr');
         const modelTd = el('td', m, 'cell');
@@ -229,8 +278,23 @@
           loadResults();
         };
         tr.append(rowDelBtn);
-        table.append(tr);
+        tbody.append(tr);
       });
+
+      const tfoot = el('tfoot');
+      const foot = el('tr');
+      const footSortable = (cell, key) => {
+        if (key) { cell.className = 'sortable'; cell.onclick = () => sortBy(key); }
+        return cell;
+      };
+      foot.append(footSortable(el('td', 'model'), 'model'));
+      foot.append(footSortable(el('td', 'temp'), 'temp'));
+      TASKS.forEach(t => foot.append(footSortable(el('td', t.id), t.id)));
+      foot.append(footSortable(el('td', 'total'), 'total'));
+      foot.append(footSortable(el('td', 'total per run'), 'total per run'));
+      foot.append(el('td', ''));
+      tfoot.append(foot);
+      table.append(tfoot);
     }
 
     async function editModelName(cell, oldName) {

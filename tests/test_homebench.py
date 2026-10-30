@@ -276,12 +276,12 @@ class TestRunBenchmarkSingleTask(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# CHAT_TIMEOUT — default LLM chat timeout (300s) and env/CLI override
+# CHAT_TIMEOUT — default LLM chat timeout (600s) and env/CLI override
 # ---------------------------------------------------------------------------
 
 class TestChatTimeout(unittest.TestCase):
-    def test_default_is_300(self):
-        self.assertEqual(CHAT_TIMEOUT, 300)
+    def test_default_is_600(self):
+        self.assertEqual(CHAT_TIMEOUT, 600)
 
 
 # ---------------------------------------------------------------------------

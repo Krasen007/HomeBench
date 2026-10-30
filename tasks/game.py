@@ -171,12 +171,50 @@ def _game_status(text):
             except OSError:
                 pass
 
+    coins_ok, coins_reason = _coin_bounds_and_collection_status(js)
+    if not coins_ok:
+        return False, coins_reason
+
     rt_ok, rt_reason = _game_runtime_status(html)
     if rt_ok is False:
         return False, rt_reason
     if rt_ok is None:
         return False, "INCONCLUSIVE: " + rt_reason
-    return True, "PASS: valid single-file HTML game with all required elements (runtime OK)"
+    return True, ("PASS: valid single-file HTML game with all required elements; "
+                  "coins render inside the canvas and are collectible (runtime OK)")
+
+
+def _coin_bounds_and_collection_status(js):
+    def has_bounded_position(axis, dimension):
+        assignments = re.finditer(
+            r"\b(?:[\w$]+\.)?" + axis + r"\s*[:=]\s*([^;,\n}]+)",
+            js, re.I)
+        for assignment in assignments:
+            expression = assignment.group(1).lower()
+            if ("math.random" in expression
+                    and "canvas." + dimension in expression
+                    and "-" in expression and "+" in expression):
+                return True
+        return False
+
+    if not (has_bounded_position("x", "width")
+            and has_bounded_position("y", "height")):
+        return False, ("FAIL: coins must spawn with an inset from all canvas "
+                       "edges so each coin renders fully inside the canvas")
+
+    entities = re.search(r"\b(?:car|player)\b", js, re.I) and re.search(
+        r"\bcoin\w*\b", js, re.I)
+    collision = re.search(
+        r"\b(?:collision\w*|distance\w*|hypot|overlap\w*|intersect\w*)\b|"
+        r"math\.abs\s*\(",
+        js, re.I)
+    collection = re.search(
+        r"\b(?:splice|filter|pop|delete|collected|score|remove)\b",
+        js, re.I)
+    if not (entities and collision and collection):
+        return False, ("FAIL: coins must be checked for collision with the "
+                       "car/player and removed or counted when collected")
+    return True, "PASS: coins render inside the canvas and are collectible"
 
 
 def _extract_html(text):
