@@ -226,3 +226,6 @@ detail view (deletes a single run). Both prompt for confirmation before
 deleting.
 
 Delete rows functionality should show only 1 (-) sign for the whole row, not next to each test
+
+in 'start.bat' (see below for file content) we should add some code to verify if the user has the needed requirements on their device to run the app
+<file_content path="start.bat">homebench.py</file_content>
