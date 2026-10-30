@@ -33,6 +33,11 @@ ADDITIONAL MANDATORY IMPLEMENTATION REQUIREMENTS (to pass all tests):
 - Valid JavaScript syntax
 - Must be playable with observable game state changes on interaction (click Play, move mouse)
 - No runtime errors
+- Write all JavaScript in pure ASCII only: do NOT include any emoji or non-ASCII Unicode glyphs anywhere in the .js code or inline strings. Use only ASCII letters, digits, punctuation, and standard whitespace.
+- For any special character that must appear (ampersand, arrow, bullet, symbol, etc.), use either an HTML entity (e.g. &amp; for &, &lt; for <) or a JavaScript Unicode escape sequence (e.g. \u0026 for &, \u2192 for →, \u2022 for •, \u2665 for ♥, \u2605 for ★) so the emitted code contains no raw high bytes.
+- Never emit raw UTF-8 or UTF-16 non-ASCII bytes in the JavaScript source; every non-ASCII character must be represented as a escape inside string literals.
+- If you need a visual symbol in the HTML/CSS, use an HTML entity, ANSI/ASCII art, CSS borders, or an inline SVG, never an emoji character.
+- The entire file must be safely written and read on Windows with the default 'charmap' (ANSI) encoding without a "character maps to <undefined>" error.
 - Include canvas element for rendering
 """
 ID = "game_solved"
