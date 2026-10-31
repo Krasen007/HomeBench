@@ -157,7 +157,7 @@ def _game_status(text):
     if js.strip():
         fd, path = tempfile.mkstemp(suffix=".js")
         try:
-            with os.fdopen(fd, "w") as f:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(js)
             r = subprocess.run(["node", "--check", path], capture_output=True,
                                timeout=JS_CHECK_TIMEOUT)

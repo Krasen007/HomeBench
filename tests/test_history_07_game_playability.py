@@ -98,3 +98,26 @@ function collect(){
                    "Here is the game:\n" + document):
         passed, reason = game._game_status(output)
         assert passed, reason
+
+
+def test_js_syntax_check_handles_non_ascii_without_crashing(monkeypatch):
+    """Raw non-ASCII (emoji) in JS source must not crash the checker with a
+    'charmap' codec / UnicodeEncodeError 'could not check JS' error on Windows.
+
+    The game itself runs fine in a browser; the checker must write the temp JS
+    file with UTF-8 (like the HTML file already does) so node --check works.
+    """
+    emoji = chr(0x1F33F)  # U+1F33F '🌏' — reproduces the reported failure char
+    html = (
+        "<!doctype html><html><body><canvas></canvas>"
+        "car coin yellow red green grass Play 200"
+        "audio mousemove setInterval"
+        f'<script>const flag="{emoji}";</script>'
+        "</body></html>"
+    )
+    monkeypatch.setattr(game, "_game_runtime_status",
+                        lambda _: (True, "PASS: runtime ok"))
+    passed, reason = game._game_status(html)
+    assert "could not check JS" not in reason, reason
+    assert "UnicodeEncodeError" not in reason, reason
+    assert "character maps to <undefined>" not in reason, reason
