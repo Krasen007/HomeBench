@@ -108,6 +108,14 @@
       return e;
     }
 
+    // Auto-scroll a live-output pane to the bottom, but only when the user is
+    // already at/near the bottom so manually scrolling back to read isn't fought.
+    function autoscroll(el) {
+      if (!el) return;
+      const atBottom = el.scrollHeight - el.scrollTop <= el.clientHeight + 40;
+      if (atBottom) el.scrollTop = el.scrollHeight;
+    }
+
     async function api(path, body) {
       const opts = body === undefined ? undefined : {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
@@ -694,6 +702,8 @@
           $('liveOutput').textContent = s.stream_output || 'Waiting for answer tokens...';
           $('liveReasoning').textContent = s.stream_reasoning || '';
           $('reasoningDetails').hidden = !s.stream_reasoning;
+          autoscroll($('liveOutput'));
+          autoscroll($('liveReasoning'));
         }
         if (s.running || wasRunning) await loadResults();
         wasRunning = s.running;
