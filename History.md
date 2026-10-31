@@ -13,3 +13,12 @@ Clarify that HomeBench does not execute tool calls; reject and explain emitted w
 Supersede that behavior: execute the weather task's exact allowlisted wttr.in web_fetch request, return only the observed Celsius temperature to the model for its final answer, and never execute arbitrary URLs or shell tools.
 
 but i want to actually be able to execute tool calls, makes sense right?
+
+for the game.py task i am wondering can the python test suite be fixed to handle errors such as FAIL: could not check JS ('charmap' codec can't encode character '\U0001f33f' in position 4459: character maps to <undefined>)
+i think the problem is not in the task because the game works but the checker code
+
+make the Live model output Generated answer auto scroll
+
+make the width of the whole application more wide
+
+add button in the webui to skip the current task while its running, make the table reflect if the test is run or skipped or pending

@@ -45,6 +45,7 @@
       </div>
       <div class="row">
         <button id="run" class="primary">Run benchmark</button>
+        <button id="skip" type="button">Skip task</button>
         <progress id="bar" value="0" max="1"></progress>
         <span id="status">Idle</span>
       </div>
@@ -85,6 +86,7 @@
   <script>
     const $ = id => document.getElementById(id);
     let TASKS = [], ROWS = [], wasRunning = false;
+    let benchRunning = false, pendingTask = '', pendingRun = 0;
     const columnWidths = new Map();
     let detailContext = null, detailPage = 0;
     let detailRunsSignature = '', detailPagerSignature = '';
@@ -362,11 +364,30 @@
         let tp = 0, tt = 0;
         TASKS.forEach(t => {
           const rs = ROWS.filter(r => r.model === m && r.task === t.id);
-          const p = rs.filter(r => r.passed).length;
+          const p = rs.filter(r => r.passed === true).length;
           tp += p; tt += rs.length;
-          const td = el('td', rs.length ? `${p}/${rs.length}` : '-', 'cell ' + (rs.length ? scoreClass(p, rs.length) : ''));
+          const skipped = rs.filter(r => r.status === 'skipped').length;
+          const nextRun = rs.length + 1;
+          const pending = benchRunning && pendingTask === t.id && pendingRun === nextRun;
+          let cls = 'cell';
+          let text;
+          if (rs.length === 0) {
+            text = '-';
+          } else if (skipped === rs.length) {
+            text = 'SKIPPED';
+            cls += ' skipped';
+          } else {
+            text = `${p}/${rs.length}`;
+            cls += ' ' + scoreClass(p, rs.length);
+            if (skipped) cls += ' skipped';
+          }
+          if (pending) cls += ' pending';
+          const td = el('td', text, cls);
           const taskAvg = average(rs.map(r => Number(r.elapsed)));
-          if (taskAvg !== null) td.title = `average ${formatSeconds(taskAvg)} per run`;
+          let title = taskAvg !== null ? `average ${formatSeconds(taskAvg)} per run` : '';
+          if (skipped) title = (title ? title + '; ' : '') + `${skipped} of ${rs.length} run(s) skipped by user`;
+          if (pending) title = (title ? title + '; ' : '') + 'currently running';
+          td.title = title;
           td.onclick = () => showDetail(m, t);
           tr.append(td);
         });
@@ -520,12 +541,13 @@
       const d = $('detailRuns');
       const outDiv = document.createElement('div');
       outDiv.className = 'md';
-      outDiv.innerHTML = renderMarkdown(r.output || '') || '(empty output)';
+      const skipped = r.status === 'skipped';
+      outDiv.innerHTML = renderMarkdown(r.output || '') || (skipped ? '(skipped by user — no output)' : '(empty output)');
       const reasonEl = document.createElement('div');
-      reasonEl.className = 'reason ' + (r.passed ? 'pass' : 'fail');
-      reasonEl.textContent = r.reason || (r.passed ? 'PASS' : 'FAIL');
+      reasonEl.className = 'reason ' + (skipped ? 'skipped' : r.passed ? 'pass' : 'fail');
+      reasonEl.textContent = r.reason || (skipped ? 'SKIPPED' : r.passed ? 'PASS' : 'FAIL');
       const elapsedText = Number.isFinite(Number(r.elapsed)) ? ` — ${formatSeconds(Number(r.elapsed))}` : '';
-      d.append(el('label', `Run ${index + 1}: ${r.passed ? 'PASS' : 'FAIL'}${elapsedText}`), reasonEl);
+      d.append(el('label', `Run ${index + 1}: ${skipped ? 'SKIPPED' : r.passed ? 'PASS' : 'FAIL'}${elapsedText}`), reasonEl);
       if (r.note) {
         const noteEl = el('div', 'Note: ' + r.note, 'note');
         d.append(noteEl);
@@ -684,6 +706,19 @@
         $('run').disabled = s.running;
         $('addPlan').disabled = s.running;
         $('securityWarning').hidden = s.running;
+        benchRunning = s.running;
+        if (s.running) {
+          pendingTask = s.stream_task || '';
+          pendingRun = s.stream_run || 0;
+        } else {
+          pendingTask = '';
+          pendingRun = 0;
+        }
+        $('skip').hidden = !s.running;
+        if (!s.running) {
+          $('skip').disabled = false;
+          $('skip').textContent = 'Skip task';
+        }
         $('bar').value = s.total ? s.done / s.total : 0;
         const planInfo = s.running && s.plans > 1 ? ` (plan ${s.plan}/${s.plans})` : '';
         $('status').textContent = s.running ? `Running ${s.model}${planInfo}: ${s.done}/${s.total}`
@@ -746,6 +781,13 @@
       // Ensure the next poll refreshes results even if this run finishes quickly.
       wasRunning = true;
       poll();
+    };
+
+    $('skip').onclick = async () => {
+      const res = await api('/api/skip', {});
+      if (res.error) { alert(res.error); return; }
+      $('skip').disabled = true;
+      $('skip').textContent = 'Skipping current task…';
     };
 
     let nextPlanTemperature = 0.6;

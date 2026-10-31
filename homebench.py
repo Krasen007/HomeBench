@@ -162,7 +162,7 @@ def chat(base_url, prompt, temperature, max_tokens, timeout, on_token=None):
 
 def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                   out_path, note="", on_result=None, task_id=None,
-                  task_ids=None, on_token=None):
+                  task_ids=None, on_token=None, should_skip=None):
     """Run tasks `runs` times, append rows to out_path (JSONL).
 
     If ``task_ids`` or ``task_id`` is given, only those tasks are run;
@@ -174,6 +174,8 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
     single task run (chat request plus checker).
     Returns the batch id.
     """
+    if should_skip is None:
+        should_skip = lambda: False
     selected_ids = task_ids if task_ids is not None else ([task_id] if task_id else None)
     tasks = ([t for t in TASKS if t["id"] in selected_ids]
              if selected_ids is not None else TASKS)
@@ -193,6 +195,8 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                 if on_token:
                     on_token(task["id"], run, {"start": True})
                 try:
+                    task_errored = False
+                    status = "run"
                     chat_kwargs = {}
                     if on_token:
                         chat_kwargs["on_token"] = (
@@ -257,11 +261,16 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                         passed = bool(task["check"](output))
                         reason = task.get("explain", lambda x: "")(output)
                 except Exception as e:  # server down, timeout, bad response...
+                    task_errored = True
                     output, passed, reason = f"[ERROR] {e}", False, "FAIL: " + str(e)
                 elapsed = round(time.perf_counter() - started, 3)
+                if should_skip() and not task_errored:
+                    output = ""
+                    passed, reason, status = None, "SKIP: skipped by user", "skipped"
                 row = {
                     "batch": batch, "model": name, "task": task["id"],
                     "run": run, "passed": passed, "reason": reason,
+                    "status": status,
                     "output": output, "note": note, "temperature": temperature,
                     "elapsed": elapsed,
                 }
@@ -303,7 +312,7 @@ def parse_plans(raw):
 
 def run_benchmark_plans(url, name, plans, max_tokens, timeout, out_path,
                         note="", task_id=None, task_ids=None, on_result=None,
-                        on_plan=None, on_token=None):
+                        on_plan=None, on_token=None, should_skip=None):
     """Execute every temperature plan in order, one model label per plan.
 
     Each plan runs the selected task(s) ``runs`` times at its temperature.
@@ -327,6 +336,8 @@ def run_benchmark_plans(url, name, plans, max_tokens, timeout, out_path,
             kwargs["task_ids"] = task_ids
         if on_token is not None:
             kwargs["on_token"] = on_token
+        if should_skip is not None:
+            kwargs["should_skip"] = should_skip
         run_benchmark(url, label, plan["runs"], plan["temperature"],
                       max_tokens, timeout, out_path,
                       note=_format_note(note, plan["temperature"]), **kwargs)
@@ -464,7 +475,7 @@ lock = threading.Lock()
 state = {"running": False, "model": "", "done": 0, "total": 0, "log": [],
          "error": None, "plan": 0, "plans": 0, "stream_task": "",
          "stream_run": 0, "stream_phase": "", "stream_output": "",
-         "stream_reasoning": ""}
+         "stream_reasoning": "", "skip": False}
 
 
 def latest_rows():
@@ -597,12 +608,23 @@ class Handler(BaseHTTPRequestHandler):
                               "stream_task": "", "stream_run": 0,
                               "stream_phase": "", "stream_output": "",
                               "stream_reasoning": ""})
+                state["skip"] = False
+
+                def should_skip():
+                    with lock:
+                        if state["skip"]:
+                            state["skip"] = False
+                            return True
+                        return False
 
             def on_result(task_id, run, passed, reason):
                 with lock:
                     state["done"] += 1
-                    state["log"].append(
-                        f"{task_id} run {run + 1}: {'PASS' if passed else 'FAIL'}")
+                    if passed is None:
+                        state["log"].append(f"{task_id} run {run + 1}: SKIPPED")
+                    else:
+                        state["log"].append(
+                            f"{task_id} run {run + 1}: {'PASS' if passed else 'FAIL'}")
 
             def on_plan(index, label, plan):
                 with lock:
@@ -632,7 +654,7 @@ class Handler(BaseHTTPRequestHandler):
                     run_benchmark_plans(url, name, plans, max_tokens, CHAT_TIMEOUT,
                                         WEB_OUT, note=note, task_ids=task_ids,
                                         on_result=on_result, on_plan=on_plan,
-                                        on_token=on_token)
+                                        on_token=on_token, should_skip=should_skip)
                 finally:
                     with lock:
                         state["running"] = False
@@ -681,6 +703,14 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 deleted = delete_rows(WEB_OUT, filters)
             self.send({"ok": True, "deleted": deleted})
+            return
+        if path == "/api/skip":
+            with lock:
+                if not state["running"]:
+                    self.send({"error": "no benchmark is running"}, code=409)
+                    return
+                state["skip"] = True
+            self.send({"ok": True})
             return
         self.send({"error": "not found"}, code=404)
 
