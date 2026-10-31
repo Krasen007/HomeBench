@@ -22,3 +22,9 @@ make the Live model output Generated answer auto scroll
 make the width of the whole application more wide
 
 add button in the webui to skip the current task while its running, make the table reflect if the test is run or skipped or pending
+
+Fix review findings: interrupt active chat reads when skipping; re-enable the Skip task button on each new run; exclude skipped runs from task and aggregate pass-rate denominators while keeping skip counts visible; assert valid emoji JavaScript passes the checker; and create a fresh mocked response for each request.
+
+tests\test_homebench.py passes but leaves pytest hanging because reusable mocked HTTP responses have no finite readline stream; create fresh, EOF-terminating responses for each request.
+
+lets run the whole suite and check if everything is ok

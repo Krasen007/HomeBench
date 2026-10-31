@@ -112,12 +112,32 @@ def test_js_syntax_check_handles_non_ascii_without_crashing(monkeypatch):
         "<!doctype html><html><body><canvas></canvas>"
         "car coin yellow red green grass Play 200"
         "audio mousemove setInterval"
-        f'<script>const flag="{emoji}";</script>'
+        f"""<script>
+        const flag="{emoji}";
+        const canvas={{width:400,height:300}}, coins=[], car={{x:0,y:0}};
+        let score=0;
+        function spawn(){{
+          const coin={{radius:10,
+            x:Math.random()*(canvas.width-20)+10,
+            y:Math.random()*(canvas.height-20)+10}};
+          coins.push(coin);
+        }}
+        function collect(){{
+          for(let i=coins.length-1;i>=0;i--){{
+            const coin=coins[i];
+            if(Math.hypot(car.x-coin.x,car.y-coin.y)<coin.radius+10){{
+              coins.splice(i,1);
+              score++;
+            }}
+          }}
+        }}
+        </script>"""
         "</body></html>"
     )
     monkeypatch.setattr(game, "_game_runtime_status",
                         lambda _: (True, "PASS: runtime ok"))
     passed, reason = game._game_status(html)
+    assert passed, reason
     assert "could not check JS" not in reason, reason
     assert "UnicodeEncodeError" not in reason, reason
     assert "character maps to <undefined>" not in reason, reason

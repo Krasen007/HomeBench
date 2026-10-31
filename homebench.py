@@ -15,7 +15,9 @@ Usage:
 import argparse
 import json
 import os
+import queue
 import re
+import socket
 import threading
 import tempfile
 import time
@@ -34,6 +36,10 @@ from tasks import TASKS, weather
 # wait the full timeout if the work finishes early. These are upper bounds.
 CHAT_TIMEOUT = int(os.environ.get("HOMEBENCH_CHAT_TIMEOUT", "600"))  # seconds
 STREAM_PREVIEW_LIMIT = 100_000
+
+
+class _SkipRequested(Exception):
+    pass
 
 
 # --------------------------------------------------------------------------
@@ -64,7 +70,8 @@ def _stream_delta(payload):
             reasoning if isinstance(reasoning, str) else "")
 
 
-def chat(base_url, prompt, temperature, max_tokens, timeout, on_token=None):
+def chat(base_url, prompt, temperature, max_tokens, timeout, on_token=None,
+         should_skip=None):
     body = json.dumps({
         "model": "local",  # llama-server ignores this; it serves one model
         "messages": [{"role": "user", "content": prompt}],
@@ -98,10 +105,55 @@ def chat(base_url, prompt, temperature, max_tokens, timeout, on_token=None):
             on_token({"content": content, "reasoning": reasoning})
 
     with urllib.request.urlopen(req, timeout=timeout) as resp:
-        while True:
-            line = resp.readline()
-            if not line:
-                break
+        if should_skip is None:
+            response_iter = iter(resp.readline, b"")
+        else:
+            lines = queue.Queue()
+            sock = getattr(getattr(getattr(resp, "fp", None), "raw", None),
+                           "_sock", None)
+
+            def read_response():
+                try:
+                    for response_line in iter(resp.readline, b""):
+                        lines.put((response_line, None))
+                    lines.put((b"", None))
+                except Exception as exc:
+                    lines.put((None, exc))
+
+            reader = threading.Thread(target=read_response, daemon=True)
+            reader.start()
+
+            def interrupt_response():
+                if sock is not None:
+                    try:
+                        sock.shutdown(socket.SHUT_RDWR)
+                    except OSError:
+                        pass
+                    sock.close()
+
+            def cancellable_lines():
+                try:
+                    while True:
+                        if should_skip():
+                            interrupt_response()
+                            raise _SkipRequested
+                        try:
+                            response_line, error = lines.get(timeout=0.2)
+                        except queue.Empty:
+                            continue
+                        if error is not None:
+                            raise error
+                        if not response_line:
+                            return
+                        yield response_line
+                finally:
+                    if reader.is_alive():
+                        interrupt_response()
+                    reader.join(timeout=1)
+
+            response_iter = cancellable_lines()
+
+        for line in response_iter:
             if isinstance(line, bytes):
                 line = line.decode("utf-8", "replace")
             stripped = line.strip()
@@ -176,6 +228,7 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
     """
     if should_skip is None:
         should_skip = lambda: False
+
     selected_ids = task_ids if task_ids is not None else ([task_id] if task_id else None)
     tasks = ([t for t in TASKS if t["id"] in selected_ids]
              if selected_ids is not None else TASKS)
@@ -192,10 +245,16 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
         for task in tasks:
             for run in range(runs):
                 started = time.perf_counter()
+                skip_requested = {"value": False}
+
+                def skip_requested_now():
+                    if not skip_requested["value"]:
+                        skip_requested["value"] = bool(should_skip())
+                    return skip_requested["value"]
+
                 if on_token:
                     on_token(task["id"], run, {"start": True})
                 try:
-                    task_errored = False
                     status = "run"
                     chat_kwargs = {}
                     if on_token:
@@ -204,7 +263,11 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                             on_token(task_id, run, chunk)
                         )
                     output = chat(url, task["prompt"], temperature,
-                                  max_tokens, timeout, **chat_kwargs)
+                                  max_tokens, timeout,
+                                  should_skip=skip_requested_now,
+                                  **chat_kwargs)
+                    if skip_requested_now():
+                        raise _SkipRequested
                     if task["id"] == weather.ID:
                         tool_request = weather.parse_tool_request(output)
                         if tool_request is None:
@@ -227,6 +290,8 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                                 passed = False
                                 reason = "FAIL: weather tool could not be executed: " + str(exc)
                             else:
+                                if skip_requested_now():
+                                    raise _SkipRequested
                                 if on_token:
                                     on_token(task["id"], run, {
                                         "start": True,
@@ -246,6 +311,7 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                                 answer = chat(
                                     url, weather.follow_up_prompt(observation),
                                     temperature, max_tokens, timeout,
+                                    should_skip=skip_requested_now,
                                     **answer_kwargs)
                                 output = (
                                     "Weather tool request:\n"
@@ -260,13 +326,14 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                     else:
                         passed = bool(task["check"](output))
                         reason = task.get("explain", lambda x: "")(output)
+                    if skip_requested_now():
+                        raise _SkipRequested
+                except _SkipRequested:
+                    output, passed, reason, status = (
+                        "", None, "SKIP: skipped by user", "skipped")
                 except Exception as e:  # server down, timeout, bad response...
-                    task_errored = True
                     output, passed, reason = f"[ERROR] {e}", False, "FAIL: " + str(e)
                 elapsed = round(time.perf_counter() - started, 3)
-                if should_skip() and not task_errored:
-                    output = ""
-                    passed, reason, status = None, "SKIP: skipped by user", "skipped"
                 row = {
                     "batch": batch, "model": name, "task": task["id"],
                     "run": run, "passed": passed, "reason": reason,
@@ -555,7 +622,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/run":
             name = (body.get("name") or "").strip()
             url = (body.get("url") or "").strip()
-            max_tokens = int(body.get("max_tokens", 32768))
+            max_tokens = int(body.get("max_tokens", 16384))
             note = body.get("note", "")
             task_id = (body.get("task") or "").strip() or None
             known_task_ids = {t["id"] for t in TASKS}

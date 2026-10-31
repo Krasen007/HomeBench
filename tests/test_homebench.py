@@ -80,7 +80,7 @@ class TestChatReturnsString(unittest.TestCase):
     @patch("homebench.urllib.request.urlopen")
     def test_returns_plain_text(self, mock_urlopen):
         mock_urlopen.return_value = self._fake_response("The answer is 42.")
-        result = chat("http://localhost:1234", "prompt", 0.0, 32768, 600)
+        result = chat("http://localhost:1234", "prompt", 0.0, 16384, 600)
         self.assertIsInstance(result, str)
         self.assertEqual(result, "The answer is 42.")
 
@@ -88,7 +88,7 @@ class TestChatReturnsString(unittest.TestCase):
     def test_reports_empty_final_answer_from_model_server(self, mock_urlopen):
         body = json.dumps({
             "choices": [{"message": {"content": None}, "finish_reason": "length"}],
-            "usage": {"completion_tokens": 32768},
+            "usage": {"completion_tokens": 16384},
         }).encode("utf-8")
         response = MagicMock()
         response.read.return_value = body
@@ -100,15 +100,15 @@ class TestChatReturnsString(unittest.TestCase):
         with self.assertRaisesRegex(
                 ValueError,
                 "model server returned no final answer text "
-                r"\(finish_reason=length, completion_tokens=32768\)"):
-            chat("http://localhost:1234", "prompt", 0.0, 32768, 600)
+                r"\(finish_reason=length, completion_tokens=16384\)"):
+            chat("http://localhost:1234", "prompt", 0.0, 16384, 600)
 
     @patch("homebench.urllib.request.urlopen")
     def test_strips_reasoning_blocks(self, mock_urlopen):
         mock_urlopen.return_value = self._fake_response(
             "thinking...\nAnswer: 2.80"
         )
-        result = chat("http://localhost:1234", "prompt", 0.0, 32768, 600)
+        result = chat("http://localhost:1234", "prompt", 0.0, 16384, 600)
         self.assertIsInstance(result, str)
 
 
@@ -206,7 +206,7 @@ class TestWorkResetsState(unittest.TestCase):
             "url": "http://localhost:1234",
             "runs": 1,
             "temperature": 0.7,
-            "max_tokens": 32768,
+            "max_tokens": 16384,
         }).encode())
         work = self._capture_work_function(h, h.rfile.getvalue())
 
@@ -222,7 +222,7 @@ class TestWorkResetsState(unittest.TestCase):
             "url": "http://localhost:1234",
             "runs": 1,
             "temperature": 0.7,
-            "max_tokens": 32768,
+            "max_tokens": 16384,
         }).encode())
         work = self._capture_work_function(h, h.rfile.getvalue())
 
@@ -246,20 +246,23 @@ class TestRunBenchmarkSingleTask(unittest.TestCase):
         body = json.dumps({"choices": [{"message": {"content": text}}]}).encode("utf-8")
         resp = MagicMock()
         resp.read.return_value = body
+        resp.readline.side_effect = io.BytesIO(body).readline
         resp.__enter__.return_value = resp
         resp.__exit__.return_value = False
         return resp
 
     @patch("homebench.urllib.request.urlopen")
     def test_task_id_filters_to_single_task(self, mock_urlopen):
-        mock_urlopen.return_value = self._fake_response("Answer: 2.80")
+        mock_urlopen.side_effect = lambda *args, **kwargs: self._fake_response(
+            "Answer: 2.80"
+        )
         rows = []
         with patch("homebench.open", create=True) as mock_open:
             mock_file = MagicMock()
             mock_open.return_value.__enter__.return_value = mock_file
             run_benchmark(
                 "http://localhost:1234", "test-model", runs=2,
-                temperature=0.0, max_tokens=32768, timeout=600,
+                temperature=0.0, max_tokens=16384, timeout=600,
                 out_path="/tmp/results.jsonl", task_id="math",
                 on_result=lambda *a: rows.append(a),
             )
@@ -273,13 +276,15 @@ class TestRunBenchmarkSingleTask(unittest.TestCase):
 
     @patch("homebench.urllib.request.urlopen")
     def test_no_task_id_runs_all_tasks(self, mock_urlopen):
-        mock_urlopen.return_value = self._fake_response("Answer: 2.80")
+        mock_urlopen.side_effect = lambda *args, **kwargs: self._fake_response(
+            "Answer: 2.80"
+        )
         with patch("homebench.open", create=True) as mock_open:
             mock_file = MagicMock()
             mock_open.return_value.__enter__.return_value = mock_file
             run_benchmark(
                 "http://localhost:1234", "test-model", runs=1,
-                temperature=0.0, max_tokens=32768, timeout=600,
+                temperature=0.0, max_tokens=16384, timeout=600,
                 out_path="/tmp/results.jsonl",
             )
         # 8 tasks * 1 run each.

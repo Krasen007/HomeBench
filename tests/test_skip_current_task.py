@@ -13,7 +13,10 @@ run_benchmark must:
 """
 import io
 import json
+import threading
+import time
 import unittest
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from homebench import run_benchmark
@@ -37,14 +40,14 @@ def _written_rows(mock_file):
 class TestSkipCurrentTask(unittest.TestCase):
     @patch("homebench.urllib.request.urlopen")
     def test_skip_flags_current_task_then_consumes_flag(self, mock_urlopen):
-        mock_urlopen.return_value = _fake_response("Answer: 2.80")
+        mock_urlopen.side_effect = lambda *args, **kwargs: _fake_response("Answer: 2.80")
         with patch("homebench.open", create=True) as mock_open:
             mock_file = MagicMock()
             mock_open.return_value.__enter__.return_value = mock_file
             once = {"value": True}
             run_benchmark(
                 "http://localhost:1234", "test-model", runs=2,
-                temperature=0.0, max_tokens=32768, timeout=600,
+                temperature=0.0, max_tokens=16384, timeout=600,
                 out_path="/tmp/results.jsonl", task_id="math",
                 should_skip=lambda: once.pop("value", False),
             )
@@ -67,7 +70,7 @@ class TestSkipCurrentTask(unittest.TestCase):
             mock_open.return_value.__enter__.return_value = mock_file
             run_benchmark(
                 "http://localhost:1234", "test-model", runs=1,
-                temperature=0.0, max_tokens=32768, timeout=600,
+                temperature=0.0, max_tokens=16384, timeout=600,
                 out_path="/tmp/results.jsonl", task_id="math",
                 should_skip=lambda: True,
             )
@@ -79,16 +82,57 @@ class TestSkipCurrentTask(unittest.TestCase):
 
     @patch("homebench.urllib.request.urlopen")
     def test_default_does_not_skip(self, mock_urlopen):
-        mock_urlopen.return_value = _fake_response("Answer: 2.80")
+        mock_urlopen.side_effect = lambda *args, **kwargs: _fake_response("Answer: 2.80")
         with patch("homebench.open", create=True) as mock_open:
             mock_file = MagicMock()
             mock_open.return_value.__enter__.return_value = mock_file
             run_benchmark(
                 "http://localhost:1234", "test-model", runs=1,
-                temperature=0.0, max_tokens=32768, timeout=600,
+                temperature=0.0, max_tokens=16384, timeout=600,
                 out_path="/tmp/results.jsonl", task_id="math",
             )
         rows = _written_rows(mock_file)
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["status"], "run")
         self.assertTrue(rows[0]["passed"])
+
+    @patch("homebench.urllib.request.urlopen")
+    def test_skip_interrupts_an_active_chat_read(self, mock_urlopen):
+        interrupted = threading.Event()
+
+        class FakeSocket:
+            def shutdown(self, _how):
+                interrupted.set()
+
+            def close(self):
+                pass
+
+        class BlockingResponse:
+            fp = SimpleNamespace(raw=SimpleNamespace(_sock=FakeSocket()))
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def readline(self):
+                interrupted.wait(2)
+                return b""
+
+        mock_urlopen.return_value = BlockingResponse()
+        started = time.monotonic()
+        with patch("homebench.open", create=True) as mock_open:
+            mock_file = MagicMock()
+            mock_open.return_value.__enter__.return_value = mock_file
+            run_benchmark(
+                "http://localhost:1234", "test-model", runs=1,
+                temperature=0.0, max_tokens=16384, timeout=600,
+                out_path="/tmp/results.jsonl", task_id="math",
+                should_skip=lambda: time.monotonic() - started >= 0.05,
+            )
+        rows = _written_rows(mock_file)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["status"], "skipped")
+        self.assertLess(rows[0]["elapsed"], 1)
+        self.assertTrue(interrupted.is_set())

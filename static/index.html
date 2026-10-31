@@ -37,7 +37,7 @@
           </div>
         </div>
         <div><label for="maxtok">Max tokens</label>
-          <input id="maxtok" type="number" min="64" step="64" value="32768">
+          <input id="maxtok" type="number" min="64" step="64" value="16384">
         </div>
         <div><label for="note">Notes for this run</label>
           <textarea id="note" rows="2" placeholder="optional notes saved with results"></textarea>
@@ -194,6 +194,10 @@
     }
 
     let sortKey = 'date', sortDir = -1;
+    let currentSkipTarget = '';
+    let requestedSkipTarget = '';
+    let requestedSkipDone = 0;
+    let currentDone = 0;
 
     function sortBy(key) {
       if (!key) return;
@@ -207,7 +211,8 @@
       return rs.filter(r => r.passed).length;
     }
     function runsFor(model, taskId) {
-      return ROWS.filter(r => r.model === model && r.task === taskId).length;
+      return ROWS.filter(r => r.model === model && r.task === taskId
+        && r.status !== 'skipped').length;
     }
     function totalSecondsFor(model) {
       return ROWS.filter(r => r.model === model)
@@ -215,7 +220,7 @@
         .reduce((a, b) => a + b, 0);
     }
     function totalPassRateFor(model) {
-      const rs = ROWS.filter(r => r.model === model);
+      const rs = ROWS.filter(r => r.model === model && r.status !== 'skipped');
       return rs.filter(r => r.passed).length / Math.max(rs.length, 1);
     }
     function latestBatchFor(model) {
@@ -364,9 +369,11 @@
         let tp = 0, tt = 0;
         TASKS.forEach(t => {
           const rs = ROWS.filter(r => r.model === m && r.task === t.id);
-          const p = rs.filter(r => r.passed === true).length;
-          tp += p; tt += rs.length;
           const skipped = rs.filter(r => r.status === 'skipped').length;
+          const completedRuns = rs.filter(r => r.status !== 'skipped');
+          const p = completedRuns.filter(r => r.passed === true).length;
+          const completed = completedRuns.length;
+          tp += p; tt += completed;
           const nextRun = rs.length + 1;
           const pending = benchRunning && pendingTask === t.id && pendingRun === nextRun;
           let cls = 'cell';
@@ -377,8 +384,8 @@
             text = 'SKIPPED';
             cls += ' skipped';
           } else {
-            text = `${p}/${rs.length}`;
-            cls += ' ' + scoreClass(p, rs.length);
+            text = `${p}/${completed}`;
+            cls += ' ' + scoreClass(p, completed);
             if (skipped) cls += ' skipped';
           }
           if (pending) cls += ' pending';
@@ -703,10 +710,19 @@
     async function poll() {
       try {
         const s = await api('/api/status');
+        currentDone = s.done || 0;
         $('run').disabled = s.running;
         $('addPlan').disabled = s.running;
         $('securityWarning').hidden = s.running;
         benchRunning = s.running;
+        const skipTarget = [s.model, s.stream_task, s.stream_run].join(':');
+        if (s.running && s.stream_task && requestedSkipTarget
+            && s.done > requestedSkipDone && skipTarget !== requestedSkipTarget) {
+          $('skip').disabled = false;
+          $('skip').textContent = 'Skip task';
+          requestedSkipTarget = '';
+        }
+        currentSkipTarget = skipTarget;
         if (s.running) {
           pendingTask = s.stream_task || '';
           pendingRun = s.stream_run || 0;
@@ -718,6 +734,8 @@
         if (!s.running) {
           $('skip').disabled = false;
           $('skip').textContent = 'Skip task';
+          requestedSkipTarget = '';
+          requestedSkipDone = 0;
         }
         $('bar').value = s.total ? s.done / s.total : 0;
         const planInfo = s.running && s.plans > 1 ? ` (plan ${s.plan}/${s.plans})` : '';
@@ -786,6 +804,8 @@
     $('skip').onclick = async () => {
       const res = await api('/api/skip', {});
       if (res.error) { alert(res.error); return; }
+      requestedSkipTarget = currentSkipTarget;
+      requestedSkipDone = currentDone;
       $('skip').disabled = true;
       $('skip').textContent = 'Skipping current task…';
     };
