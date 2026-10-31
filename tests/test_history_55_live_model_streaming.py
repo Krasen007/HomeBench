@@ -55,7 +55,7 @@ def test_run_benchmark_marks_stream_start_and_forwards_model_chunks(
     monkeypatch.setattr(homebench, "TASKS", [task])
     captured = []
 
-    def fake_chat(*args, on_token=None):
+    def fake_chat(*args, on_token=None, should_skip=None):
         on_token({"content": "partial", "reasoning": ""})
         return "complete"
 

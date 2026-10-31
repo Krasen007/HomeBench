@@ -28,3 +28,5 @@ Fix review findings: interrupt active chat reads when skipping; re-enable the Sk
 tests\test_homebench.py passes but leaves pytest hanging because reusable mocked HTTP responses have no finite readline stream; create fresh, EOF-terminating responses for each request.
 
 lets run the whole suite and check if everything is ok
+
+Confirmed: keep skip support and update test doubles to accept the optional should_skip callback.
