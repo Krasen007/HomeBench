@@ -22,8 +22,9 @@ def test_queued_tasks_render_pending_until_they_have_results():
         "&& activeTasks.includes(t.id);"
     ) in render
     assert "const awaitingResult = awaitingRun && rs.length === 0;" in render
-    assert "text = awaitingResult ? 'pending' : '-';" in render
-    assert "if (pending || awaitingResult) cls += ' pending';" in render
+    assert "text = pending ? 'running' : (awaitingResult ? 'pending' : '-');" in render
+    assert "if (awaitingResult && !pending) cls += ' pending';" in render
+    assert "if (pending) cls += ' running';" in render
     assert "not completed yet" in render
 
 

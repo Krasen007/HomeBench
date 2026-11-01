@@ -488,7 +488,7 @@
           let cls = 'cell';
           let text;
           if (rs.length === 0) {
-            text = awaitingResult ? 'pending' : '-';
+            text = pending ? 'running' : (awaitingResult ? 'pending' : '-');
           } else if (skipped === rs.length) {
             text = 'SKIPPED';
             cls += ' skipped';
@@ -497,7 +497,8 @@
             cls += ' ' + scoreClass(p, completed);
             if (skipped) cls += ' skipped';
           }
-          if (pending || awaitingResult) cls += ' pending';
+          if (awaitingResult && !pending) cls += ' pending';
+          if (pending) cls += ' running';
           const td = el('td', text, cls);
           const taskAvg = average(rs.map(r => Number(r.elapsed)));
           let title = taskAvg !== null ? `average ${formatSeconds(taskAvg)} per run` : '';

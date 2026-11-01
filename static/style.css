@@ -405,6 +405,9 @@ td.cell:hover {
 .pending {
   outline: 1px solid var(--muted);
   outline-offset: -1px;
+}
+
+.running {
   background: #fff7e6;
 }
 

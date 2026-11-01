@@ -115,3 +115,8 @@ Mapped to tests/test_history_78_per_row_delete_button_removed.py.
 also add abort test button next to skip test that will cancel all of the run
 
 Mapped to tests/test_history_79_abort_run.py.
+
+in the webview when the task is currently running, it should say running instead of pending. also remove the background for the pending ones only keep it for the running one
+
+ok i see the alt text showing not completed yet, but the text now shows running.
+only the real running task should be running and the rest should be pending
