@@ -67,3 +67,12 @@ Mapped to tests/test_history_71_pending_marker_current_model.py, tests/test_hist
 also in the webview update total per run colum to be "time" and the result to be an elasped time with minutes like 0:42 or 2:12
 
 Mapped to tests/test_history_75_time_column_format.py.
+
+1. when i start a benchmark the results table should populate even before the first test is passed. if a task is not yet completed it should say pending instead of "-"
+2. combine the checkbox and the delete all results per row in a single column
+
+Mapped to tests/test_history_76_pending_rows_before_first_result.py, tests/test_history_77_combined_row_actions.py.
+
+actually just remove the Per-row (-)
+
+Mapped to tests/test_history_78_per_row_delete_button_removed.py.

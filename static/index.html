@@ -88,6 +88,7 @@
     let TASKS = [], ROWS = [], wasRunning = false;
     let benchRunning = false, pendingTask = '', pendingRun = 0;
     let benchModel = '';
+    let activeTasks = [], benchTemperature = null;
     const columnWidths = new Map();
     let detailContext = null, detailPage = 0;
     const selectedModels = new Set();
@@ -362,7 +363,9 @@
     }
 
     function render() {
-      const models = sortModels([...new Set(ROWS.map(r => r.model))]);
+      const modelSet = new Set(ROWS.map(r => r.model));
+      if (benchRunning && benchModel) modelSet.add(benchModel);
+      const models = sortModels([...modelSet]);
       for (const m of [...selectedModels]) if (!models.includes(m)) selectedModels.delete(m);
       syncBulkDelete();
       const table = $('table');
@@ -380,11 +383,11 @@
       if (!models.length) return;
 
       const colgroup = el('colgroup');
-      const columnCount = TASKS.length + 7;
+      const columnCount = TASKS.length + 6;
       for (let i = 0; i < columnCount; i++) {
         const col = document.createElement('col');
         const defaultWidth = i === 0 ? 34 : i === 1 ? 170
-          : i === 2 ? 190 : i === 3 ? 76 : i === columnCount - 1 ? 56 : 112;
+          : i === 2 ? 190 : i === 3 ? 76 : 112;
         col.style.width = `${columnWidths.get(i) || defaultWidth}px`;
         colgroup.append(col);
       }
@@ -420,7 +423,6 @@
       TASKS.forEach((t, i) => head.append(sortable(el('th', t.id), t.id, i + 4)));
       head.append(sortable(el('th', 'total'), 'total', TASKS.length + 4));
       head.append(sortable(el('th', 'time'), 'time', TASKS.length + 5));
-      head.append(el('th', ''));
       thead.append(head);
       table.append(thead);
 
@@ -462,7 +464,9 @@
         };
         tr.append(modelTd);
         const temps = [...new Set(modelRows.map(r => r.temperature).filter(v => v !== undefined))];
-        tr.append(el('td', temps.length ? String(temps[0]) : '-', 'cell'));
+        const shownTemp = temps.length ? String(temps[0])
+          : benchRunning && m === benchModel && benchTemperature !== null ? String(benchTemperature) : '-';
+        tr.append(el('td', shownTemp, 'cell'));
         let tp = 0, tt = 0;
         TASKS.forEach(t => {
           const rs = ROWS.filter(r => r.model === m && r.task === t.id);
@@ -472,12 +476,14 @@
           const completed = completedRuns.length;
           tp += p; tt += completed;
           const nextRun = rs.length + 1;
+          const awaitingRun = benchRunning && m === benchModel && activeTasks.includes(t.id);
+          const awaitingResult = awaitingRun && rs.length === 0;
           // Scope the marker to the running plan's model and active task/run.
           const pending = benchRunning && m === benchModel && pendingTask === t.id && pendingRun === nextRun;
           let cls = 'cell';
           let text;
           if (rs.length === 0) {
-            text = '-';
+            text = awaitingResult ? 'pending' : '-';
           } else if (skipped === rs.length) {
             text = 'SKIPPED';
             cls += ' skipped';
@@ -486,12 +492,13 @@
             cls += ' ' + scoreClass(p, completed);
             if (skipped) cls += ' skipped';
           }
-          if (pending) cls += ' pending';
+          if (pending || awaitingResult) cls += ' pending';
           const td = el('td', text, cls);
           const taskAvg = average(rs.map(r => Number(r.elapsed)));
           let title = taskAvg !== null ? `average ${formatSeconds(taskAvg)} per run` : '';
           if (skipped) title = (title ? title + '; ' : '') + `${skipped} of ${rs.length} run(s) skipped by user`;
           if (pending) title = (title ? title + '; ' : '') + 'currently running';
+          if (awaitingResult && !pending) title = (title ? title + '; ' : '') + 'not completed yet';
           td.title = title;
           td.onclick = () => showDetail(m, t);
           tr.append(td);
@@ -500,17 +507,6 @@
         const nums = modelRows.map(r => Number(r.elapsed)).filter(Number.isFinite);
         const totalPerRun = nums.length ? nums.reduce((a, b) => a + b, 0) : null;
         tr.append(el('td', formatDuration(totalPerRun), 'cell'));
-        const rowDelBtn = el('button', '(-)');
-        rowDelBtn.title = 'Delete all results for model ' + m;
-        rowDelBtn.style.cssText = 'margin-left:6px;font-size:11px;line-height:1;padding:0 4px;';
-        rowDelBtn.onclick = async (e) => {
-          e.stopPropagation();
-          if (!confirm('Delete all results for model "' + m + '"?')) return;
-          const res = await api('/api/delete_rows', { model: m });
-          if (res.error) { alert(res.error); return; }
-          loadResults();
-        };
-        tr.append(rowDelBtn);
         tbody.append(tr);
       });
       table.append(tbody);
@@ -528,7 +524,6 @@
       TASKS.forEach(t => foot.append(footSortable(el('td', t.id), t.id)));
       foot.append(footSortable(el('td', 'total'), 'total'));
       foot.append(footSortable(el('td', 'time'), 'time'));
-      foot.append(el('td', ''));
       tfoot.append(foot);
       table.append(tfoot);
       syncBulkDelete();
@@ -825,6 +820,8 @@
         }
         currentSkipTarget = skipTarget;
         if (s.running) {
+          activeTasks = Array.isArray(s.tasks) ? s.tasks : [];
+          benchTemperature = Number.isFinite(s.temperature) ? s.temperature : null;
           pendingTask = s.stream_task || '';
           pendingRun = s.stream_run || 0;
           if (!pollInterval) {
@@ -834,6 +831,7 @@
           pendingTask = '';
           pendingRun = 0;
           benchModel = '';
+          activeTasks = []; benchTemperature = null;
           if (pollInterval) {
             clearInterval(pollInterval);
             pollInterval = null;

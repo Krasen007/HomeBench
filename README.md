@@ -93,6 +93,8 @@ the pass or failure plus the elapsed time for that run.
 ### 4. Inspect and manage results
 
 - Select a result cell to view its task prompt, answer, and pass/fail reason.
+- While a benchmark is running, its row appears immediately; queued tasks that
+  have no result yet show **pending**.
 - The **time** column shows the total elapsed time as `m:ss` across that model's runs;
   hover a task cell for that task's average, and the detail view shows the
   elapsed time of each individual run.

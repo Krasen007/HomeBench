@@ -94,4 +94,4 @@ def test_frontend_provides_bulk_selection_and_one_request_delete():
     assert "Delete selected" in HTML
     assert "function syncBulkDelete()" in HTML
     assert "api('/api/delete_rows', { models })" in HTML
-    assert "api('/api/delete_rows', { model: m })" in HTML
+    assert "api('/api/delete_rows', { model: m })" not in HTML

@@ -573,7 +573,7 @@ lock = threading.Lock()
 state = {"running": False, "model": "", "done": 0, "total": 0, "log": [],
          "error": None, "plan": 0, "plans": 0, "stream_task": "",
          "stream_run": 0, "stream_phase": "", "stream_output": "",
-         "stream_reasoning": "", "skip": False}
+         "stream_reasoning": "", "skip": False, "tasks": [], "temperature": None}
 
 
 def latest_rows():
@@ -705,7 +705,9 @@ class Handler(BaseHTTPRequestHandler):
                               "plan": 1, "plans": len(plans),
                               "stream_task": "", "stream_run": 0,
                               "stream_phase": "", "stream_output": "",
-                              "stream_reasoning": ""})
+                              "stream_reasoning": "",
+                              "tasks": list(task_ids),
+                              "temperature": None})
                 state["skip"] = False
 
                 def should_skip():
@@ -728,6 +730,7 @@ class Handler(BaseHTTPRequestHandler):
                 with lock:
                     state["model"] = label
                     state["plan"] = index + 1
+                    state["temperature"] = plan["temperature"]
                     state["log"].append(
                         f"queued {label} @ temp {plan['temperature']} × "
                         f"{plan['runs']} run(s)")
