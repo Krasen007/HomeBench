@@ -194,20 +194,44 @@ def _coin_bounds_and_collection_status(js):
         ast.Div: operator.truediv,
     }
 
-    def interval(node, dimension, radius):
+    def interval(node, dimension, radius, symbols=None, resolving=None):
+        symbols = symbols or {}
+        resolving = resolving or set()
         if isinstance(node, ast.Expression):
-            return interval(node.body, dimension, radius)
+            return interval(node.body, dimension, radius, symbols, resolving)
         if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
             return node.value, node.value
         if isinstance(node, ast.Name):
-            return {
+            bounds = {
                 "random": (0.0, 1.0),
                 "dimension": (dimension, dimension),
                 "radius": (radius, radius),
             }.get(node.id)
+            if bounds is not None:
+                return bounds
+            if node.id in symbols and node.id not in resolving:
+                try:
+                    symbol = ast.parse(symbols[node.id], mode="eval")
+                except SyntaxError:
+                    return None
+                return interval(symbol, dimension, radius, symbols,
+                                resolving | {node.id})
+            return None
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            if node.func.id in ("cos", "sin"):
+                return -1.0, 1.0
+        if isinstance(node, ast.UnaryOp):
+            value = interval(node.operand, dimension, radius, symbols,
+                             resolving)
+            if value is None:
+                return None
+            if isinstance(node.op, ast.UAdd):
+                return value
+            if isinstance(node.op, ast.USub):
+                return -value[1], -value[0]
         if isinstance(node, ast.BinOp) and type(node.op) in operators:
-            left = interval(node.left, dimension, radius)
-            right = interval(node.right, dimension, radius)
+            left = interval(node.left, dimension, radius, symbols, resolving)
+            right = interval(node.right, dimension, radius, symbols, resolving)
             if left is None or right is None:
                 return None
             fn = operators[type(node.op)]
@@ -224,42 +248,97 @@ def _coin_bounds_and_collection_status(js):
             return min(values), max(values)
         return None
 
-    def bounded_coin_axis(axis, dimension_name):
-        coin_objects = re.finditer(
+    coin_objects = [
+        (match.group(1), match.start())
+        for match in re.finditer(
             r"\b(?:const|let|var)\s+[\w$]*coin[\w$]*\s*=\s*\{([^{}]*)\}",
             js, re.I | re.S)
-        for match in coin_objects:
-            body = match.group(1)
-            radius_match = re.search(
-                r"\bradius\s*:\s*(\d+(?:\.\d+)?)\b", body, re.I)
-            position_match = re.search(
-                r"\b" + axis + r"\s*:\s*([^,}]+)", body, re.I | re.S)
-            if not radius_match or not position_match:
-                continue
-            radius = float(radius_match.group(1))
-            expression = position_match.group(1).strip()
-            if not re.search(r"\bMath\.random\s*\(", expression, re.I):
-                continue
+    ]
+    coin_objects.extend(
+        (match.group(1), match.start())
+        for match in re.finditer(
+            r"\b[\w$]*coins?\s*\.\s*push\s*\(\s*\{([^{}]*)\}\s*\)",
+            js, re.I | re.S)
+    )
+
+    def bounded_coin_axis(body, offset, axis, dimension_name, radius):
+        def normalize(expression):
+            expression = re.sub(r"//.*$", "", expression)
+            expression = re.sub(r"/\*.*?\*/", "", expression, flags=re.S)
             expression = re.sub(r"\bMath\.random\s*\(\s*\)", "random",
                                 expression, flags=re.I)
-            expression = re.sub(r"\bcanvas\s*\.\s*" + dimension_name,
-                                "dimension", expression, flags=re.I)
-            expression = re.sub(r"\b(?:coin|newCoin)\s*\.\s*radius",
-                                "radius", expression, flags=re.I)
-            try:
-                parsed = ast.parse(expression, mode="eval")
-            except SyntaxError:
-                continue
-            size = 1000000.0
-            bounds = interval(parsed, size, radius)
-            if bounds and bounds[0] >= radius and bounds[1] <= size - radius:
-                return True
-        return False
+            expression = re.sub(r"\bMath\.(?:sin|cos)\s*\(", "cos(",
+                                expression, flags=re.I)
+            expression = re.sub(
+                r"\bcanvas\s*\.\s*" + dimension_name, "dimension",
+                expression, flags=re.I)
+            return re.sub(
+                r"(?<![\w$.])" + dimension_name + r"\b", "dimension",
+                expression, flags=re.I)
 
-    if not (bounded_coin_axis("x", "width")
-            and bounded_coin_axis("y", "height")):
+        position_match = re.search(
+            r"\b" + axis + r"\s*:\s*([^,}]+)", body, re.I | re.S)
+        if position_match:
+            expression = position_match.group(1).strip()
+        elif re.search(r"\b" + axis + r"\b(?=\s*[,}])", body, re.I):
+            declarations = re.findall(
+                r"\b(?:const|let|var)\s+" + axis
+                + r"\s*=\s*([^;\r\n]+)", js[:offset], re.I)
+            if not declarations:
+                return False
+            expression = declarations[-1].strip()
+        else:
+            return False
+
+        expression = normalize(expression)
+        expression = re.sub(
+            r"\b(?:coin|newCoin)\s*\.\s*radius", "radius",
+            expression, flags=re.I)
+        symbols = {
+            name: normalize(value)
+            for name, value in re.findall(
+                r"\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)"
+                r"\s*=\s*([^;\r\n]+)", js[:offset])
+        }
+        try:
+            parsed = ast.parse(expression, mode="eval")
+        except SyntaxError:
+            return False
+        size = 1000000.0
+        bounds = interval(parsed, size, radius, symbols)
+        return bool(bounds and bounds[0] >= radius
+                    and bounds[1] <= size - radius)
+
+    coins_bounded = bool(coin_objects) and all(
+        (radius_match := re.search(
+            r"\bradius\s*:\s*(\d+(?:\.\d+)?)\b", body, re.I))
+        and bounded_coin_axis(body, offset, "x", "width",
+                              float(radius_match.group(1)))
+        and bounded_coin_axis(body, offset, "y", "height",
+                              float(radius_match.group(1)))
+        for body, offset in coin_objects
+    )
+    if not coins_bounded:
         return False, ("FAIL: coins must spawn with an inset from all canvas "
                        "edges so each coin renders fully inside the canvas")
+
+    def collection_action(body, resolving=None):
+        resolving = resolving or set()
+        if (re.search(r"\bcoins?\s*\.\s*(?:splice|pop|filter)\s*\(|"
+                      r"\b(?:remove|delete)\s*\(\s*coin\w*\b", body, re.I)
+                or re.search(r"\bscore\b\s*(?:\+\+|--|[+\-]?=)", body, re.I)):
+            return True
+        calls = re.findall(r"\b([A-Za-z_$][\w$]*)\s*\(", body)
+        for name in calls:
+            if name in resolving:
+                continue
+            function = re.search(
+                r"\bfunction\s+" + re.escape(name)
+                + r"\s*\([^)]*\)\s*\{([\s\S]*?)\}", js, re.I)
+            if (function and collection_action(
+                    function.group(1), resolving | {name})):
+                return True
+        return False
 
     collection_path = False
     for match in re.finditer(
@@ -271,13 +350,8 @@ def _coin_bounds_and_collection_status(js):
             r"\b(?:collision\w*|distance\w*|hypot|overlap\w*|"
             r"intersect\w*)\b|math\.abs\s*\(|[<>]=?|!==|===",
             condition, re.I)
-        removes_coin = re.search(
-            r"\bcoins?\s*\.\s*(?:splice|pop|filter)\s*\(|"
-            r"\b(?:remove|delete)\s*\(\s*coin\w*\b", body, re.I)
-        updates_score = re.search(
-            r"\bscore\b\s*(?:\+\+|--|[+\-]?=)", body, re.I)
         if (has_player and has_coin and has_collision
-                and (removes_coin or updates_score)):
+                and collection_action(body)):
             collection_path = True
             break
     if not collection_path:

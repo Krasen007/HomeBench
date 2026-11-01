@@ -30,3 +30,29 @@ tests\test_homebench.py passes but leaves pytest hanging because reusable mocked
 lets run the whole suite and check if everything is ok
 
 Confirmed: keep skip support and update test doubles to accept the optional should_skip callback.
+
+fix server constant polling rate
+
+a lot of the game.py tasks fail on this test
+
+    if not (bounded_coin_axis("x", "width")
+            and bounded_coin_axis("y", "height")):
+        return False, ("FAIL: coins must spawn with an inset from all canvas "
+                       "edges so each coin renders fully inside the canvas")
+
+can you verify if the test is correctly detecting that the game has a problem?
+from my test the coins appear properly inside the canvas
+
+Mapped to tests/test_history_67_coin_spawn_bounds_verification.py.
+
+maybe update the game.py
+
+Mapped to tests/test_history_68_coin_bounds_checker_flexibility.py.
+
+here is a file @example.html that fails for some reason, can you explain why?
+
+Mapped to tests/test_history_69_example_game_rejection_diagnosis.py.
+
+so we should update the checker? if the game logic is correct then it should not fail the test?
+
+Mapped to tests/test_history_70_game_checker_accepts_valid_patterns.py.

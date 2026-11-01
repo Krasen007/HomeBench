@@ -71,10 +71,10 @@ def test_coin_check_rejects_collection_actions_disconnected_from_collision():
     assert "collision with the car/player" in reason
 
 
-def test_coin_check_rejects_unrelated_player_spawn_position_as_coin_bounds():
+def test_random_player_position_cannot_hide_unsafe_fixed_coin_position():
     js = BOUNDED_GAME_LOGIC.replace(
         "x: Math.random() * (canvas.width - 20) + 10",
-        "x: 20"
+        "x: 0"
     ).replace(
         "const player = { x: 20, y: 20 };",
         "const player = { x: Math.random() * (canvas.width - 20) + 10, "
