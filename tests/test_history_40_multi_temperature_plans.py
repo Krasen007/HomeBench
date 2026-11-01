@@ -168,7 +168,8 @@ def test_run_endpoint_queues_all_plans_in_one_worker(tmp_path, monkeypatch):
 
         def fake_run(url, name, runs, temperature, max_tokens, timeout,
                      out_path, note="", on_result=None, task_id=None,
-                     task_ids=None, on_token=None, should_skip=None):
+                     task_ids=None, on_token=None, should_skip=None,
+                     should_abort=None):
             calls.append((name, runs, temperature, note, task_ids))
             return 0
 

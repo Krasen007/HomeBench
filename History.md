@@ -76,3 +76,7 @@ Mapped to tests/test_history_76_pending_rows_before_first_result.py, tests/test_
 actually just remove the Per-row (-)
 
 Mapped to tests/test_history_78_per_row_delete_button_removed.py.
+
+also add abort test button next to skip test that will cancel all of the run
+
+Mapped to tests/test_history_79_abort_run.py.

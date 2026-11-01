@@ -63,7 +63,8 @@ def test_run_endpoint_queues_only_selected_tasks_and_adjusts_progress(
 
         def fake_run(url, name, runs, temperature, max_tokens, timeout,
                      out_path, note="", on_result=None, task_id=None,
-                     task_ids=None, on_token=None, should_skip=None):
+                     task_ids=None, on_token=None, should_skip=None,
+                     should_abort=None):
             calls.append(task_ids)
 
         with patch("homebench.run_benchmark", side_effect=fake_run):

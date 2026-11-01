@@ -46,6 +46,7 @@
       <div class="row">
         <button id="run" class="primary">Run benchmark</button>
         <button id="skip" type="button">Skip task</button>
+        <button id="abort" type="button" hidden>Abort run</button>
         <progress id="bar" value="0" max="1"></progress>
         <span id="status">Idle</span>
       </div>
@@ -838,9 +839,12 @@
           }
         }
         $('skip').hidden = !s.running;
+        $('abort').hidden = !s.running;
         if (!s.running) {
           $('skip').disabled = false;
           $('skip').textContent = 'Skip task';
+          $('abort').disabled = false;
+          $('abort').textContent = 'Abort run';
           requestedSkipTarget = '';
           requestedSkipDone = 0;
         }
@@ -919,6 +923,13 @@
       requestedSkipDone = currentDone;
       $('skip').disabled = true;
       $('skip').textContent = 'Skipping current task…';
+    };
+    $('abort').onclick = async () => {
+      if (!confirm('Abort the whole benchmark run? Results already saved are kept.')) return;
+      const res = await api('/api/abort', {});
+      if (res.error) { alert(res.error); return; }
+      $('abort').disabled = true;
+      $('abort').textContent = 'Aborting…';
     };
 
     let nextPlanTemperature = 0.6;

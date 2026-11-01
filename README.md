@@ -85,6 +85,8 @@ Open the address printed in the terminal (by default
 4. Optionally add a note for the run.
 5. Select **Run benchmark** to queue and execute every plan automatically.
    Follow the progress indicator; it reports the active plan and run counts.
+   Use **Skip task** to skip the current task or **Abort run** to cancel the
+   remaining queue; results already saved are kept.
 
 The benchmark runs every task for the number of repetitions in each plan. Each
 answer is checked independently, and the results include a reason describing

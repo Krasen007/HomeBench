@@ -214,7 +214,8 @@ def chat(base_url, prompt, temperature, max_tokens, timeout, on_token=None,
 
 def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                   out_path, note="", on_result=None, task_id=None,
-                  task_ids=None, on_token=None, should_skip=None):
+                  task_ids=None, on_token=None, should_skip=None,
+                  should_abort=None):
     """Run tasks `runs` times, append rows to out_path (JSONL).
 
     If ``task_ids`` or ``task_id`` is given, only those tasks are run;
@@ -228,6 +229,8 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
     """
     if should_skip is None:
         should_skip = lambda: False
+    if should_abort is None:
+        should_abort = lambda: False
 
     selected_ids = task_ids if task_ids is not None else ([task_id] if task_id else None)
     tasks = ([t for t in TASKS if t["id"] in selected_ids]
@@ -244,6 +247,8 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
     with open(out_path, "a") as out:
         for task in tasks:
             for run in range(runs):
+                if should_abort():
+                    return batch
                 started = time.perf_counter()
                 skip_requested = {"value": False}
 
@@ -329,6 +334,8 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                     if skip_requested_now():
                         raise _SkipRequested
                 except _SkipRequested:
+                    if should_abort():
+                        return batch
                     output, passed, reason, status = (
                         "", None, "SKIP: skipped by user", "skipped")
                 except Exception as e:  # server down, timeout, bad response...
@@ -379,7 +386,8 @@ def parse_plans(raw):
 
 def run_benchmark_plans(url, name, plans, max_tokens, timeout, out_path,
                         note="", task_id=None, task_ids=None, on_result=None,
-                        on_plan=None, on_token=None, should_skip=None):
+                        on_plan=None, on_token=None, should_skip=None,
+                        should_abort=None):
     """Execute every temperature plan in order, one model label per plan.
 
     Each plan runs the selected task(s) ``runs`` times at its temperature.
@@ -396,6 +404,8 @@ def run_benchmark_plans(url, name, plans, max_tokens, timeout, out_path,
         existing.add(label)
         jobs.append((label, plan))
     for index, (label, plan) in enumerate(jobs):
+        if should_abort is not None and should_abort():
+            break
         if on_plan:
             on_plan(index, label, plan)
         kwargs = {"on_result": on_result, "task_id": task_id}
@@ -405,6 +415,8 @@ def run_benchmark_plans(url, name, plans, max_tokens, timeout, out_path,
             kwargs["on_token"] = on_token
         if should_skip is not None:
             kwargs["should_skip"] = should_skip
+        if should_abort is not None:
+            kwargs["should_abort"] = should_abort
         run_benchmark(url, label, plan["runs"], plan["temperature"],
                       max_tokens, timeout, out_path,
                       note=_format_note(note, plan["temperature"]), **kwargs)
@@ -573,7 +585,8 @@ lock = threading.Lock()
 state = {"running": False, "model": "", "done": 0, "total": 0, "log": [],
          "error": None, "plan": 0, "plans": 0, "stream_task": "",
          "stream_run": 0, "stream_phase": "", "stream_output": "",
-         "stream_reasoning": "", "skip": False, "tasks": [], "temperature": None}
+         "stream_reasoning": "", "skip": False, "tasks": [], "temperature": None,
+         "abort": False}
 
 
 def latest_rows():
@@ -707,15 +720,21 @@ class Handler(BaseHTTPRequestHandler):
                               "stream_phase": "", "stream_output": "",
                               "stream_reasoning": "",
                               "tasks": list(task_ids),
-                              "temperature": None})
+                              "temperature": None, "abort": False})
                 state["skip"] = False
 
                 def should_skip():
                     with lock:
+                        if state["abort"]:
+                            return True
                         if state["skip"]:
                             state["skip"] = False
                             return True
                         return False
+
+                def should_abort():
+                    with lock:
+                        return bool(state["abort"])
 
             def on_result(task_id, run, passed, reason):
                 with lock:
@@ -755,10 +774,14 @@ class Handler(BaseHTTPRequestHandler):
                     run_benchmark_plans(url, name, plans, max_tokens, CHAT_TIMEOUT,
                                         WEB_OUT, note=note, task_ids=task_ids,
                                         on_result=on_result, on_plan=on_plan,
-                                        on_token=on_token, should_skip=should_skip)
+                                        on_token=on_token, should_skip=should_skip,
+                                        should_abort=should_abort)
                 finally:
                     with lock:
+                        if state["abort"]:
+                            state["log"].append("run aborted by user")
                         state["running"] = False
+                        state["abort"] = False
 
             threading.Thread(target=work, daemon=True).start()
             self.send({"ok": True, "queued": len(plans), "total": total_runs})
@@ -823,6 +846,14 @@ class Handler(BaseHTTPRequestHandler):
                     self.send({"error": "no benchmark is running"}, code=409)
                     return
                 state["skip"] = True
+            self.send({"ok": True})
+            return
+        if path == "/api/abort":
+            with lock:
+                if not state["running"]:
+                    self.send({"error": "no benchmark is running"}, code=409)
+                    return
+                state["abort"] = True
             self.send({"ok": True})
             return
         self.send({"error": "not found"}, code=404)
