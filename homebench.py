@@ -678,6 +678,15 @@ class Handler(BaseHTTPRequestHandler):
             css_path = Path(__file__).with_name("static") / "style.css"
             self.send(css_path.read_text(encoding="utf-8"), ctype="text/css")
             return
+        if path in ("/favicon.ico", "/static/favicon.ico"):
+            favicon_path = Path(__file__).with_name("static") / "favicon.ico"
+            favicon_data = favicon_path.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "image/vnd.microsoft.icon")
+            self.send_header("Content-Length", str(len(favicon_data)))
+            self.end_headers()
+            self.wfile.write(favicon_data)
+            return
         if path == "/api/tasks":
             self.send([{"id": t["id"], "prompt": t["prompt"]} for t in TASKS])
             return

@@ -1,4 +1,6 @@
 # HomeBench
+![The browser UI is a static site in `static/`, served by `homebench.py`. It
+includes](static/favicon.ico)
 
 HomeBench is a lightweight benchmark for comparing small language models served
 locally by [llama.cpp](https://github.com/ggml-org/llama.cpp). It provides a
