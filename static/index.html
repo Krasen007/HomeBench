@@ -77,7 +77,7 @@
       </div>
       <p class="hint">Click a cell to see the prompt and the model's raw output. Re-running a model
         with the same name gets an incremented label so previous results are preserved.</p>
-      <div class="row"><button id="export">Export results</button> <button id="clear">Clear all results</button></div>
+      <div class="row"><button id="export">Export results</button> <button id="deleteSelected" type="button" disabled>Delete selected</button> <button id="clear">Clear all results</button></div>
     </section>
 
     <section id="detail" class="card" hidden></section>
@@ -87,8 +87,10 @@
     const $ = id => document.getElementById(id);
     let TASKS = [], ROWS = [], wasRunning = false;
     let benchRunning = false, pendingTask = '', pendingRun = 0;
+    let benchModel = '';
     const columnWidths = new Map();
     let detailContext = null, detailPage = 0;
+    const selectedModels = new Set();
     let detailRunsSignature = '', detailPagerSignature = '';
     const RUNS_PER_PAGE = 1;
     const TASK_DESCRIPTIONS = {
@@ -132,6 +134,14 @@
       return (v >= 10 ? v.toFixed(1) : v.toFixed(2)) + 's';
     }
 
+    // Elapsed totals are shown as minutes:seconds, e.g. 0:42 or 2:12.
+    function formatDuration(v) {
+      if (!Number.isFinite(v)) return '-';
+      const seconds = Math.max(0, Math.round(v));
+      const minutes = Math.floor(seconds / 60);
+      return `${minutes}:${String(seconds % 60).padStart(2, '0')}`;
+    }
+
     function average(values) {
       const nums = values.filter(Number.isFinite);
       return nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : null;
@@ -140,6 +150,46 @@
     function totalPerRun(values) {
       const nums = values.filter(Number.isFinite);
       return nums.length ? nums.reduce((a, b) => a + b, 0) : null;
+    }
+
+    const PLAN_STORAGE_KEY = 'homebench.plans';
+
+    function savePlans() {
+      try {
+        localStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify({
+          plans: readPlans(),
+          nextTemperature: nextPlanTemperature
+        }));
+      } catch (e) {
+        console.warn('Could not save temperature plans', e);
+      }
+    }
+
+    function loadSavedPlans() {
+      try {
+        const raw = localStorage.getItem(PLAN_STORAGE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        const container = Array.isArray(parsed) ? null : parsed;
+        const plans = Array.isArray(parsed) ? parsed : container && container.plans;
+        if (!Array.isArray(plans)) return null;
+        if (container && Number.isFinite(Number(container.nextTemperature))) {
+          nextPlanTemperature = Number(container.nextTemperature);
+        }
+        const valid = plans.filter(plan => plan
+          && Number.isFinite(Number(plan.runs))
+          && Number.isFinite(Number(plan.temperature))
+          && Number(plan.runs) >= 1 && Number(plan.runs) <= 50
+          && Number(plan.temperature) >= 0 && Number(plan.temperature) <= 2)
+          .map(plan => ({
+            runs: Number(plan.runs),
+            temperature: Number(plan.temperature)
+          }));
+        return valid.length ? valid : null;
+      } catch (e) {
+        console.warn('Could not load temperature plans', e);
+        return null;
+      }
     }
 
     // Temperature plans: one row per queued batch, e.g. "3 × at 0.6".
@@ -154,6 +204,7 @@
       runsInput.value = String(runs);
       runsInput.className = 'plan-runs';
       runsInput.setAttribute('aria-label', 'Number of runs');
+      runsInput.oninput = savePlans;
       const times = el('span', '× at');
       const tempInput = el('input');
       tempInput.type = 'number';
@@ -163,12 +214,17 @@
       tempInput.value = String(temperature);
       tempInput.className = 'plan-temp';
       tempInput.setAttribute('aria-label', 'Temperature');
+      tempInput.oninput = savePlans;
       const remove = el('button', 'Remove');
       remove.type = 'button';
       remove.className = 'plan-remove';
       remove.onclick = () => {
-        if ($('plans').children.length > 1) row.remove();
-        else alert('At least one temperature plan is required.');
+        if ($('plans').children.length > 1) {
+          row.remove();
+          savePlans();
+        } else {
+          alert('At least one temperature plan is required.');
+        }
       };
       row.append(runsInput, times, tempInput, remove);
       $('plans').append(row);
@@ -232,7 +288,9 @@
     function formatDateTime(batch) {
       if (!Number.isFinite(batch)) return '-';
       const date = new Date(batch * 1000);
-      return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString();
+      if (Number.isNaN(date.getTime())) return '-';
+      const pad = value => String(value).padStart(2, '0');
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} : ${pad(date.getHours())}:${pad(date.getMinutes())}`;
     }
     function sortModels(models) {
       if (!sortKey) return models;
@@ -245,7 +303,7 @@
         else if (sortKey === 'temp') {
           va = ROWS.find(r => r.model === a)?.temperature ?? 0;
           vb = ROWS.find(r => r.model === b)?.temperature ?? 0;
-        } else if (sortKey === 'total per run') {
+        } else if (sortKey === 'time') {
           va = totalSecondsFor(a); vb = totalSecondsFor(b);
         } else if (sortKey === 'total') {
           va = totalPassRateFor(a); vb = totalPassRateFor(b);
@@ -295,8 +353,18 @@
       th.append(handle);
     }
 
+    function syncBulkDelete() {
+      const button = $('deleteSelected');
+      if (!button) return;
+      button.textContent = selectedModels.size > 0
+        ? `Delete selected (${selectedModels.size})` : 'Delete selected';
+      button.disabled = selectedModels.size === 0;
+    }
+
     function render() {
       const models = sortModels([...new Set(ROWS.map(r => r.model))]);
+      for (const m of [...selectedModels]) if (!models.includes(m)) selectedModels.delete(m);
+      syncBulkDelete();
       const table = $('table');
       table.replaceChildren();
       const empty = $('empty');
@@ -312,11 +380,11 @@
       if (!models.length) return;
 
       const colgroup = el('colgroup');
-      const columnCount = TASKS.length + 6;
+      const columnCount = TASKS.length + 7;
       for (let i = 0; i < columnCount; i++) {
         const col = document.createElement('col');
-        const defaultWidth = i === 0 ? 170 : i === 1 ? 190
-          : i === 2 ? 76 : i === columnCount - 1 ? 56 : 112;
+        const defaultWidth = i === 0 ? 34 : i === 1 ? 170
+          : i === 2 ? 190 : i === 3 ? 76 : i === columnCount - 1 ? 56 : 112;
         col.style.width = `${columnWidths.get(i) || defaultWidth}px`;
         colgroup.append(col);
       }
@@ -331,12 +399,27 @@
         resizeHandle(cell, colgroup.children[index], index);
         return cell;
       };
-      head.append(sortable(el('th', 'date/time'), 'date', 0));
-      head.append(sortable(el('th', 'model'), 'model', 1));
-      head.append(sortable(el('th', 'temp'), 'temp', 2));
-      TASKS.forEach((t, i) => head.append(sortable(el('th', t.id), t.id, i + 3)));
-      head.append(sortable(el('th', 'total'), 'total', TASKS.length + 3));
-      head.append(sortable(el('th', 'total per run'), 'total per run', TASKS.length + 4));
+      const selectAll = document.createElement('input');
+      selectAll.type = 'checkbox';
+      selectAll.id = 'selectAllModels';
+      selectAll.setAttribute('aria-label', 'Select all model rows');
+      selectAll.checked = models.length > 0 && models.every(m => selectedModels.has(m));
+      selectAll.indeterminate = selectedModels.size > 0
+        && !models.every(m => selectedModels.has(m));
+      selectAll.onchange = () => {
+        if (selectAll.checked) models.forEach(m => selectedModels.add(m));
+        else models.forEach(m => selectedModels.delete(m));
+        render();
+      };
+      const selectTh = el('th', undefined, 'select-cell');
+      selectTh.append(selectAll);
+      head.append(selectTh);
+      head.append(sortable(el('th', 'date/time'), 'date', 1));
+      head.append(sortable(el('th', 'model'), 'model', 2));
+      head.append(sortable(el('th', 'temp'), 'temp', 3));
+      TASKS.forEach((t, i) => head.append(sortable(el('th', t.id), t.id, i + 4)));
+      head.append(sortable(el('th', 'total'), 'total', TASKS.length + 4));
+      head.append(sortable(el('th', 'time'), 'time', TASKS.length + 5));
       head.append(el('th', ''));
       thead.append(head);
       table.append(thead);
@@ -344,6 +427,19 @@
       const tbody = el('tbody');
       models.forEach(m => {
         const tr = el('tr');
+        const selectTd = el('td', undefined, 'select-cell');
+        const rowCheckbox = document.createElement('input');
+        rowCheckbox.type = 'checkbox';
+        rowCheckbox.setAttribute('aria-label', 'Select model ' + m);
+        rowCheckbox.checked = selectedModels.has(m);
+        rowCheckbox.onchange = () => {
+          if (rowCheckbox.checked) selectedModels.add(m);
+          else selectedModels.delete(m);
+          syncBulkDelete();
+        };
+        rowCheckbox.onclick = e => e.stopPropagation();
+        selectTd.append(rowCheckbox);
+        tr.append(selectTd);
         const modelRows = ROWS.filter(r => r.model === m);
         const latestBatch = latestBatchFor(m);
         const dateCell = el('td', formatDateTime(latestBatch), 'cell');
@@ -376,7 +472,8 @@
           const completed = completedRuns.length;
           tp += p; tt += completed;
           const nextRun = rs.length + 1;
-          const pending = benchRunning && pendingTask === t.id && pendingRun === nextRun;
+          // Scope the marker to the running plan's model and active task/run.
+          const pending = benchRunning && m === benchModel && pendingTask === t.id && pendingRun === nextRun;
           let cls = 'cell';
           let text;
           if (rs.length === 0) {
@@ -402,7 +499,7 @@
         tr.append(el('td', `${tp}/${tt}`, 'cell ' + (tt ? scoreClass(tp, tt) : '')));
         const nums = modelRows.map(r => Number(r.elapsed)).filter(Number.isFinite);
         const totalPerRun = nums.length ? nums.reduce((a, b) => a + b, 0) : null;
-        tr.append(el('td', formatSeconds(totalPerRun), 'cell'));
+        tr.append(el('td', formatDuration(totalPerRun), 'cell'));
         const rowDelBtn = el('button', '(-)');
         rowDelBtn.title = 'Delete all results for model ' + m;
         rowDelBtn.style.cssText = 'margin-left:6px;font-size:11px;line-height:1;padding:0 4px;';
@@ -424,15 +521,17 @@
         if (key) { cell.className = 'sortable'; cell.onclick = () => sortBy(key); }
         return cell;
       };
+      foot.append(el('td', ''));
       foot.append(footSortable(el('td', 'date/time'), 'date'));
       foot.append(footSortable(el('td', 'model'), 'model'));
       foot.append(footSortable(el('td', 'temp'), 'temp'));
       TASKS.forEach(t => foot.append(footSortable(el('td', t.id), t.id)));
       foot.append(footSortable(el('td', 'total'), 'total'));
-      foot.append(footSortable(el('td', 'total per run'), 'total per run'));
+      foot.append(footSortable(el('td', 'time'), 'time'));
       foot.append(el('td', ''));
       tfoot.append(foot);
       table.append(tfoot);
+      syncBulkDelete();
     }
 
     async function editModelName(cell, oldName) {
@@ -716,6 +815,7 @@
         $('addPlan').disabled = s.running;
         $('securityWarning').hidden = s.running;
         benchRunning = s.running;
+        benchModel = s.model || '';
         const skipTarget = [s.model, s.stream_task, s.stream_run].join(':');
         if (s.running && s.stream_task && requestedSkipTarget
             && s.done > requestedSkipDone && skipTarget !== requestedSkipTarget) {
@@ -733,6 +833,7 @@
         } else {
           pendingTask = '';
           pendingRun = 0;
+          benchModel = '';
           if (pollInterval) {
             clearInterval(pollInterval);
             pollInterval = null;
@@ -826,6 +927,22 @@
     $('addPlan').onclick = () => {
       addPlanRow(1, nextPlanTemperature);
       nextPlanTemperature = 1.0;
+      savePlans();
+    };
+
+    $('deleteSelected').onclick = async () => {
+      const models = [...selectedModels];
+      if (!models.length) return;
+      if (!confirm(`Delete all results for ${models.length} selected model row(s)?`)) return;
+      const res = await api('/api/delete_rows', { models });
+      if (res.error) { alert(res.error); return; }
+      if (detailContext && selectedModels.has(detailContext.model)) {
+        detailContext = null;
+        $('detail').hidden = true;
+      }
+      selectedModels.clear();
+      detailRunsSignature = detailPagerSignature = '';
+      loadResults();
     };
 
     $('clear').onclick = async () => {
@@ -834,6 +951,7 @@
       if (res.error) alert(res.error);
       $('detail').hidden = true;
       detailContext = null;
+      selectedModels.clear();
       detailRunsSignature = detailPagerSignature = '';
       loadResults();
     };
@@ -853,7 +971,9 @@
 
     (async () => {
       TASKS = await api('/api/tasks');
-      addPlanRow(1, 0.0);
+      const savedPlans = loadSavedPlans();
+      if (savedPlans) savedPlans.forEach(plan => addPlanRow(plan.runs, plan.temperature));
+      else addPlanRow(1, 0.0);
       const taskSel = $('task');
       for (const t of TASKS) {
         const label = el('label', undefined, 'task-option');

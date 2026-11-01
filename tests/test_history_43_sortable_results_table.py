@@ -13,7 +13,7 @@ def test_results_table_fields_are_sortable():
     assert "el('th', 'model')" in HTML
     assert "el('th', 'temp')" in HTML
     assert "el('th', 'total')" in HTML
-    assert "el('th', 'total per run')" in HTML
+    assert "el('th', 'time')" in HTML
 
 
 def test_result_labels_repeated_in_footer_at_bottom():
@@ -27,4 +27,4 @@ def test_result_labels_repeated_in_footer_at_bottom():
     assert "el('td', 'model')" in HTML
     assert "el('td', 'temp')" in HTML
     assert "el('td', 'total')" in HTML
-    assert "el('td', 'total per run')" in HTML
+    assert "el('td', 'time')" in HTML

@@ -56,3 +56,14 @@ Mapped to tests/test_history_69_example_game_rejection_diagnosis.py.
 so we should update the checker? if the game logic is correct then it should not fail the test?
 
 Mapped to tests/test_history_70_game_checker_accepts_valid_patterns.py.
+
+read agents.md then 1. the currently running marker on the webui seems to duplicate across past runs if they were not performed, it should be scoped only to the current run.
+2. make the date/time output in time format similar to 2026-11-01 : 18:50
+3. Temperature plans are lost if the user refreshes the browser window
+4. i should be able to delete multiple rows with a single click, maybe add checkbox?
+
+Mapped to tests/test_history_71_pending_marker_current_model.py, tests/test_history_72_datetime_format.py, tests/test_history_73_saved_temperature_plans.py, tests/test_history_74_bulk_delete_rows.py.
+
+also in the webview update total per run colum to be "time" and the result to be an elasped time with minutes like 0:42 or 2:12
+
+Mapped to tests/test_history_75_time_column_format.py.

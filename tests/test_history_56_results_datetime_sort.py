@@ -8,7 +8,7 @@ HTML = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
 
 
 def test_results_table_includes_date_time_column_in_header_and_footer():
-    assert "sortable(el('th', 'date/time'), 'date', 0)" in HTML
+    assert "sortable(el('th', 'date/time'), 'date', 1)" in HTML
     assert "footSortable(el('td', 'date/time'), 'date')" in HTML
     assert "function latestBatchFor(model)" in HTML
     assert "function formatDateTime(batch)" in HTML

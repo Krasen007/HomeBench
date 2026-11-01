@@ -500,6 +500,37 @@ def delete_rows(path, filters):
     return deleted
 
 
+def delete_models(path, models):
+    """Remove every row whose model label appears in ``models``.
+
+    Returns the number of rows deleted. Raises ValueError when no valid model
+    labels are supplied.
+    """
+    if not isinstance(models, (list, tuple)):
+        models = []
+    models = [m.strip() for m in models if isinstance(m, str) and m.strip()]
+    if not models:
+        raise ValueError("at least one model is required")
+    targets = set(models)
+    rows = load_rows(path)
+    remaining = [r for r in rows if r.get("model") not in targets]
+    deleted = len(rows) - len(remaining)
+    if deleted:
+        directory = os.path.dirname(os.path.abspath(path))
+        fd, temp_path = tempfile.mkstemp(prefix=".homebench-", suffix=".tmp", dir=directory)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                for r in remaining:
+                    f.write(json.dumps(r) + "\n")
+            os.replace(temp_path, path)
+        finally:
+            try:
+                os.remove(temp_path)
+            except FileNotFoundError:
+                pass
+    return deleted
+
+
 def rename_model(path, old_name, new_name):
     """Rename old_name to new_name in every row of the JSONL results file.
 
@@ -764,11 +795,23 @@ class Handler(BaseHTTPRequestHandler):
                     self.send({"error": "cannot delete rows while a benchmark is running"},
                               code=409)
                     return
-                filters = {k: v for k, v in body.items() if k in ("model", "task", "batch", "run")}
-                if not filters:
-                    self.send({"error": "at least one of model, task, batch, run is required"}, code=400)
-                    return
-                deleted = delete_rows(WEB_OUT, filters)
+                if "models" in body:
+                    raw_models = body["models"]
+                    if (not isinstance(raw_models, list)
+                            or not raw_models
+                            or any(not isinstance(m, str) or not m.strip()
+                                   for m in raw_models)
+                            or len(set(raw_models)) != len(raw_models)):
+                        self.send({"error": "models must be a non-empty list of model labels"},
+                                  code=400)
+                        return
+                    deleted = delete_models(WEB_OUT, raw_models)
+                else:
+                    filters = {k: v for k, v in body.items() if k in ("model", "task", "batch", "run")}
+                    if not filters:
+                        self.send({"error": "at least one of model, task, batch, run is required"}, code=400)
+                        return
+                    deleted = delete_rows(WEB_OUT, filters)
             self.send({"ok": True, "deleted": deleted})
             return
         if path == "/api/skip":
