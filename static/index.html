@@ -197,6 +197,7 @@
     let currentSkipTarget = '';
     let requestedSkipTarget = '';
     let requestedSkipDone = 0;
+    let pollInterval = null;
     let currentDone = 0;
 
     function sortBy(key) {
@@ -726,9 +727,16 @@
         if (s.running) {
           pendingTask = s.stream_task || '';
           pendingRun = s.stream_run || 0;
+          if (!pollInterval) {
+            pollInterval = setInterval(poll, 1000);
+          }
         } else {
           pendingTask = '';
           pendingRun = 0;
+          if (pollInterval) {
+            clearInterval(pollInterval);
+            pollInterval = null;
+          }
         }
         $('skip').hidden = !s.running;
         if (!s.running) {
@@ -799,6 +807,10 @@
       // Ensure the next poll refreshes results even if this run finishes quickly.
       wasRunning = true;
       poll();
+      // Keep polling every second while a benchmark is running.
+      if (!pollInterval) {
+        pollInterval = setInterval(poll, 1000);
+      }
     };
 
     $('skip').onclick = async () => {
@@ -858,7 +870,7 @@
           .forEach(input => { input.checked = $('taskAll').checked; });
         syncTaskSelectAll();
       };
-      await loadResults(); await poll(); setInterval(poll, 1000);
+      await loadResults(); await poll();
     })();
   </script>
 </body>
