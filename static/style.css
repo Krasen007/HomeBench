@@ -402,11 +402,6 @@ td.cell:hover {
   font-style: italic;
 }
 
-.pending {
-  outline: 1px solid var(--muted);
-  outline-offset: -1px;
-}
-
 .running {
   background: #fff7e6;
 }
@@ -422,17 +417,21 @@ td.cell:hover {
   cursor: pointer;
   user-select: none;
 }
+
 .sortable:hover {
   background: var(--bg);
 }
+
 .sorted {
   font-weight: 700;
 }
+
 .sort-dir {
   font-size: 11px;
   opacity: 0.7;
   margin-left: 4px;
 }
+
 tfoot td {
   font-size: 12px;
   color: var(--muted);
@@ -440,9 +439,11 @@ tfoot td {
   border-top: 2px solid var(--border);
   background: var(--bg);
 }
+
 tfoot td.sortable {
   cursor: pointer;
 }
+
 tfoot td.sortable:hover {
   background: var(--card);
 }
