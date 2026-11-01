@@ -63,7 +63,7 @@ class TestSkipCurrentTask(unittest.TestCase):
         self.assertTrue(rows[1]["passed"])
 
     @patch("homebench.urllib.request.urlopen")
-    def test_errored_run_is_not_skipped(self, mock_urlopen):
+    def test_skip_takes_precedence_over_connection_error(self, mock_urlopen):
         mock_urlopen.side_effect = OSError("server down")
         with patch("homebench.open", create=True) as mock_open:
             mock_file = MagicMock()
@@ -76,9 +76,9 @@ class TestSkipCurrentTask(unittest.TestCase):
             )
         rows = _written_rows(mock_file)
         self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]["status"], "run")
-        self.assertFalse(rows[0]["passed"])
-        self.assertTrue(rows[0]["reason"].startswith("FAIL:"))
+        self.assertEqual(rows[0]["status"], "skipped")
+        self.assertIsNone(rows[0]["passed"])
+        self.assertEqual(rows[0]["reason"], "SKIP: skipped by user")
 
     @patch("homebench.urllib.request.urlopen")
     def test_default_does_not_skip(self, mock_urlopen):

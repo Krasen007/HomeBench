@@ -42,6 +42,50 @@ class _SkipRequested(Exception):
     pass
 
 
+def _urlopen_cancellable(req, timeout, should_cancel):
+    if should_cancel is None:
+        return urllib.request.urlopen(req, timeout=timeout)
+
+    completed = queue.Queue(maxsize=1)
+    cancelled = threading.Event()
+    result_lock = threading.Lock()
+
+    def open_request():
+        try:
+            response = urllib.request.urlopen(req, timeout=timeout)
+        except Exception as exc:
+            result = (None, exc)
+        else:
+            result = (response, None)
+        with result_lock:
+            if cancelled.is_set():
+                if result[0] is not None:
+                    result[0].close()
+                return
+            completed.put_nowait(result)
+
+    threading.Thread(target=open_request, daemon=True).start()
+    while True:
+        if should_cancel():
+            with result_lock:
+                cancelled.set()
+                try:
+                    response, _ = completed.get_nowait()
+                except queue.Empty:
+                    pass
+                else:
+                    if response is not None:
+                        response.close()
+            raise _SkipRequested
+        try:
+            response, error = completed.get(timeout=0.1)
+        except queue.Empty:
+            continue
+        if error is not None:
+            raise error
+        return response
+
+
 # --------------------------------------------------------------------------
 # Talking to llama-server (OpenAI-compatible endpoint)
 # --------------------------------------------------------------------------
@@ -71,7 +115,7 @@ def _stream_delta(payload):
 
 
 def chat(base_url, prompt, temperature, max_tokens, timeout, on_token=None,
-         should_skip=None):
+         should_skip=None, should_abort=None):
     body = json.dumps({
         "model": "local",  # llama-server ignores this; it serves one model
         "messages": [{"role": "user", "content": prompt}],
@@ -104,8 +148,14 @@ def chat(base_url, prompt, temperature, max_tokens, timeout, on_token=None,
         if on_token and (content or reasoning):
             on_token({"content": content, "reasoning": reasoning})
 
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        if should_skip is None:
+    def should_cancel():
+        return bool((should_skip and should_skip())
+                    or (should_abort and should_abort()))
+
+    with _urlopen_cancellable(
+            req, timeout, should_cancel if should_skip or should_abort else None
+    ) as resp:
+        if not (should_skip or should_abort):
             response_iter = iter(resp.readline, b"")
         else:
             lines = queue.Queue()
@@ -134,7 +184,7 @@ def chat(base_url, prompt, temperature, max_tokens, timeout, on_token=None,
             def cancellable_lines():
                 try:
                     while True:
-                        if should_skip():
+                        if should_cancel():
                             interrupt_response()
                             raise _SkipRequested
                         try:
@@ -229,6 +279,7 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
     """
     if should_skip is None:
         should_skip = lambda: False
+    abort_callback_provided = should_abort is not None
     if should_abort is None:
         should_abort = lambda: False
 
@@ -267,6 +318,8 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                             lambda chunk, task_id=task["id"], run=run:
                             on_token(task_id, run, chunk)
                         )
+                    if abort_callback_provided:
+                        chat_kwargs["should_abort"] = should_abort
                     output = chat(url, task["prompt"], temperature,
                                   max_tokens, timeout,
                                   should_skip=skip_requested_now,
@@ -313,6 +366,8 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                                         lambda chunk, task_id=task["id"], run=run:
                                         on_token(task_id, run, chunk)
                                     )
+                                if abort_callback_provided:
+                                    answer_kwargs["should_abort"] = should_abort
                                 answer = chat(
                                     url, weather.follow_up_prompt(observation),
                                     temperature, max_tokens, timeout,

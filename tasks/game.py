@@ -1,4 +1,5 @@
 import ast
+import math
 import operator
 import os
 import re
@@ -202,11 +203,11 @@ def _coin_bounds_and_collection_status(js):
         if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
             return node.value, node.value
         if isinstance(node, ast.Name):
-            bounds = {
-                "random": (0.0, 1.0),
-                "dimension": (dimension, dimension),
-                "radius": (radius, radius),
-            }.get(node.id)
+            bounds = {"random": (0.0, 1.0),
+                      "dimension": (dimension, dimension)}
+            if radius is not None:
+                bounds["radius"] = (radius, radius)
+            bounds = bounds.get(node.id)
             if bounds is not None:
                 return bounds
             if node.id in symbols and node.id not in resolving:
@@ -242,7 +243,7 @@ def _coin_bounds_and_collection_status(js):
             if isinstance(node.op, ast.Mult):
                 values = [fn(a, b) for a in left for b in right]
                 return min(values), max(values)
-            if 0 in right:
+            if right[0] <= 0 <= right[1]:
                 return None
             values = [fn(a, b) for a in left for b in right]
             return min(values), max(values)
@@ -281,12 +282,7 @@ def _coin_bounds_and_collection_status(js):
         if position_match:
             expression = position_match.group(1).strip()
         elif re.search(r"\b" + axis + r"\b(?=\s*[,}])", body, re.I):
-            declarations = re.findall(
-                r"\b(?:const|let|var)\s+" + axis
-                + r"\s*=\s*([^;\r\n]+)", js[:offset], re.I)
-            if not declarations:
-                return False
-            expression = declarations[-1].strip()
+            expression = axis
         else:
             return False
 
@@ -294,30 +290,76 @@ def _coin_bounds_and_collection_status(js):
         expression = re.sub(
             r"\b(?:coin|newCoin)\s*\.\s*radius", "radius",
             expression, flags=re.I)
-        symbols = {
-            name: normalize(value)
-            for name, value in re.findall(
-                r"\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)"
-                r"\s*=\s*([^;\r\n]+)", js[:offset])
-        }
+        symbols = {}
+        for assignment in re.finditer(
+            r"(?<![\w$.])(?:(?:const|let|var)\s+)?"
+            r"([A-Za-z_$][\w$]*)\s*=(?!=|>)\s*([^;\r\n]+)",
+            js[:offset]):
+            symbols[assignment.group(1)] = normalize(
+            assignment.group(2).strip())
         try:
             parsed = ast.parse(expression, mode="eval")
         except SyntaxError:
             return False
-        size = 1000000.0
+        size = canvas_dimension(dimension_name)
         bounds = interval(parsed, size, radius, symbols)
         return bool(bounds and bounds[0] >= radius
                     and bounds[1] <= size - radius)
 
+    def canvas_dimension(axis):
+        declarations = []
+        canvas = re.search(
+            r"\b(?:const|let|var)\s+canvas\s*=\s*\{([^{}]*)\}", js, re.I | re.S)
+        if canvas:
+            value = re.search(
+                r"\b" + axis + r"\s*:\s*(\d+(?:\.\d+)?)\b",
+                canvas.group(1), re.I)
+            if value:
+                declarations.append((canvas.start(), float(value.group(1))))
+        for match in re.finditer(
+                r"(?<![\w$.])(?:(?:const|let|var)\s+)?"
+                + re.escape(axis)
+                + r"\s*=\s*([^;\r\n]+)|\bcanvas\s*\.\s*"
+                + re.escape(axis) + r"\s*=\s*([^;\r\n]+)", js, re.I):
+            expression = (match.group(1) or match.group(2)).strip()
+            number = re.fullmatch(r"(\d+(?:\.\d+)?)", expression)
+            declarations.append(
+                (match.start(), float(number.group(1)) if number else None))
+        declarations.sort(key=lambda item: item[0])
+        known = next((value for _, value in reversed(declarations)
+                      if value is not None), None)
+        latest = declarations[-1][1] if declarations else known
+        if latest is not None:
+            return latest
+        return 320.0 if axis == "width" else 240.0
+
+    def bounded_coin(body, offset):
+        radius_match = re.search(r"\bradius\s*:\s*([^,}]+)", body, re.I)
+        if not radius_match:
+            return False
+        symbols = {}
+        for assignment in re.finditer(
+                r"(?<![\w$.])(?:(?:const|let|var)\s+)?"
+                r"([A-Za-z_$][\w$]*)\s*=(?!=|>)\s*([^;\r\n]+)",
+                js[:offset]):
+            symbols[assignment.group(1)] = assignment.group(2).strip()
+        expression = re.sub(r"//.*$", "", radius_match.group(1)).strip()
+        try:
+            parsed = ast.parse(expression, mode="eval")
+        except SyntaxError:
+            return False
+        radius_bounds = interval(
+            parsed, canvas_dimension("width"), None, symbols)
+        if (not radius_bounds or radius_bounds[0] != radius_bounds[1]
+                or not math.isfinite(radius_bounds[0])
+                or radius_bounds[0] <= 0):
+            return False
+        radius = radius_bounds[0]
+        return (bounded_coin_axis(body, offset, "x", "width", radius)
+                and bounded_coin_axis(body, offset, "y", "height", radius))
+
     coins_bounded = bool(coin_objects) and all(
-        (radius_match := re.search(
-            r"\bradius\s*:\s*(\d+(?:\.\d+)?)\b", body, re.I))
-        and bounded_coin_axis(body, offset, "x", "width",
-                              float(radius_match.group(1)))
-        and bounded_coin_axis(body, offset, "y", "height",
-                              float(radius_match.group(1)))
-        for body, offset in coin_objects
-    )
+        bounded_coin(body, offset) for body, offset in coin_objects)
     if not coins_bounded:
         return False, ("FAIL: coins must spawn with an inset from all canvas "
                        "edges so each coin renders fully inside the canvas")
@@ -332,13 +374,57 @@ def _coin_bounds_and_collection_status(js):
         for name in calls:
             if name in resolving:
                 continue
-            function = re.search(
-                r"\bfunction\s+" + re.escape(name)
-                + r"\s*\([^)]*\)\s*\{([\s\S]*?)\}", js, re.I)
-            if (function and collection_action(
-                    function.group(1), resolving | {name})):
+            function_body = get_function_body(name)
+            if (function_body is not None and collection_action(
+                    function_body, resolving | {name})):
                 return True
         return False
+
+    def get_function_body(name):
+        declarations = re.finditer(
+            r"\bfunction\s+" + re.escape(name)
+            + r"\s*\([^)]*\)\s*\{", js, re.I)
+        for declaration in declarations:
+            opening = declaration.end() - 1
+            depth = 1
+            index = opening + 1
+            quote = None
+            escaped = False
+            line_comment = False
+            block_comment = False
+            while index < len(js):
+                char = js[index]
+                following = js[index + 1] if index + 1 < len(js) else ""
+                if line_comment:
+                    if char == "\n":
+                        line_comment = False
+                elif block_comment:
+                    if char == "*" and following == "/":
+                        block_comment = False
+                        index += 1
+                elif quote:
+                    if escaped:
+                        escaped = False
+                    elif char == "\\":
+                        escaped = True
+                    elif char == quote:
+                        quote = None
+                elif char == "/" and following == "/":
+                    line_comment = True
+                    index += 1
+                elif char == "/" and following == "*":
+                    block_comment = True
+                    index += 1
+                elif char in ("'", '"', "`"):
+                    quote = char
+                elif char == "{":
+                    depth += 1
+                elif char == "}":
+                    depth -= 1
+                    if depth == 0:
+                        return js[opening + 1:index]
+                index += 1
+        return None
 
     collection_path = False
     for match in re.finditer(

@@ -438,6 +438,10 @@
         rowCheckbox.onchange = () => {
           if (rowCheckbox.checked) selectedModels.add(m);
           else selectedModels.delete(m);
+          selectAll.checked = models.length > 0
+            && models.every(model => selectedModels.has(model));
+          selectAll.indeterminate = selectedModels.size > 0
+            && !selectAll.checked;
           syncBulkDelete();
         };
         rowCheckbox.onclick = e => e.stopPropagation();
