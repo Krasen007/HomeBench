@@ -25,7 +25,7 @@ def test_results_sort_defaults_to_latest_batch_first():
 
 
 def test_history_records_datetime_column_request():
-    history = (ROOT / "History.md").read_text(encoding="utf-8")
+    history = (ROOT / "History-v1.2.md").read_text(encoding="utf-8")
 
     assert (
         "in the Results table add date and time column and make it sort by "

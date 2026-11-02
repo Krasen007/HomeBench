@@ -89,7 +89,7 @@ def test_ui_displays_live_answer_and_reasoning_in_scrollable_independent_panes()
 
 
 def test_history_records_live_streaming_request():
-    history = (ROOT / "History.md").read_text(encoding="utf-8")
+    history = (ROOT / "History-v1.2.md").read_text(encoding="utf-8")
 
     assert (
         "show the reasoning or output tokens of the model in real time"

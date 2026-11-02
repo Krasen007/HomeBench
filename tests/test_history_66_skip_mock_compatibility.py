@@ -3,7 +3,7 @@ from pathlib import Path
 
 
 def test_skip_mock_compatibility_decision_is_recorded():
-    history = Path(__file__).parents[1] / "History.md"
+    history = Path(__file__).parents[1] / "History-v1.2.md"
     assert (
         "Confirmed: keep skip support and update test doubles to accept the "
         "optional should_skip callback."

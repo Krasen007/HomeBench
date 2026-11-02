@@ -42,6 +42,12 @@ class _SkipRequested(Exception):
     pass
 
 
+class _LoopDetected(Exception):
+    def __init__(self, output=""):
+        super().__init__("repetition loop detected")
+        self.output = output
+
+
 LOOP_CHECK_INTERVAL = 256
 LOOP_BUFFER_LIMIT = 8000
 LOOP_MIN_PATTERN = 8
@@ -180,7 +186,8 @@ def chat(base_url, prompt, temperature, max_tokens, timeout, on_token=None,
             return
         loop_next[field] = loop_totals[field] + LOOP_CHECK_INTERVAL
         if _detect_repetition_loop(buffer):
-            raise _SkipRequested("repetition loop detected")
+            parts = reasoning_parts if field == "reasoning" else content_parts
+            raise _LoopDetected("".join(parts))
 
     def consume(payload):
         if isinstance(payload.get("usage"), dict):
@@ -305,7 +312,7 @@ def chat(base_url, prompt, temperature, max_tokens, timeout, on_token=None,
         detail_text = f" ({', '.join(details)})" if details else ""
         raise ValueError("model server returned no final answer text" + detail_text)
     if _detect_repetition_loop(text):
-        raise _SkipRequested("repetition loop detected")
+        raise _LoopDetected(text)
     # Drop reasoning blocks from "thinking" models (e.g., Qwen3, DeepSeek-R1)
     return _sanitize_output(text)
 
@@ -440,6 +447,11 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                         reason = task.get("explain", lambda x: "")(output)
                     if skip_requested_now():
                         raise _SkipRequested
+                except _LoopDetected as exc:
+                    output = exc.output or "[repetition loop detected]"
+                    passed = False
+                    reason = "FAIL: repetition loop detected"
+                    status = "run"
                 except _SkipRequested as exc:
                     if should_abort():
                         return batch

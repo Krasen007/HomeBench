@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).parents[1]
 HOME_BENCH = (ROOT / "homebench.py").read_text(encoding="utf-8")
 PAGE = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
-HISTORY = (ROOT / "History.md").read_text(encoding="utf-8")
+HISTORY = (ROOT / "History-v1.2.md").read_text(encoding="utf-8")
 
 
 def test_skip_interrupts_chat_and_writes_a_skipped_result():

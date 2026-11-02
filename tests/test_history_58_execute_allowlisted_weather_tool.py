@@ -122,7 +122,7 @@ def test_tool_execution_failure_is_visible_in_saved_benchmark_result(
 
 
 def test_history_records_live_allowlisted_weather_tool_behavior():
-    history = (ROOT / "History.md").read_text(encoding="utf-8")
+    history = (ROOT / "History-v1.2.md").read_text(encoding="utf-8")
 
     assert (
         "execute the weather task's exact allowlisted wttr.in web_fetch request"
