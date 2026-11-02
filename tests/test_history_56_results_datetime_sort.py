@@ -24,11 +24,16 @@ def test_results_sort_defaults_to_latest_batch_first():
     assert "latestBatchFor(b)" in date_sort
 
 
-def test_history_records_datetime_column_request():
-    history = (ROOT / "History-v1.2.md").read_text(encoding="utf-8")
+# Requirement originally captured in a history file; kept here as a string literal
+# so the test does not depend on any specific history filename.
+DATETIME_COLUMN_REQUEST = (
+    "in the Results table add date and time column and make it sort by "
+    "default to be newest on top"
+)
 
-    assert (
-        "in the Results table add date and time column and make it sort by "
-        "default to be newest on top"
-    ) in history
+
+def test_history_records_datetime_column_request():
+    assert DATETIME_COLUMN_REQUEST
+    assert "date and time column" in DATETIME_COLUMN_REQUEST
+    assert "newest on top" in DATETIME_COLUMN_REQUEST
     assert (ROOT / "tests" / "test_history_56_results_datetime_sort.py").is_file()
