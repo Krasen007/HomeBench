@@ -90,6 +90,7 @@
     let TASKS = [], ROWS = [], wasRunning = false;
     let benchRunning = false, pendingTask = '', pendingRun = 0;
     let benchModel = '';
+    let benchPhase = '';
     let activeTasks = [], benchTemperature = null;
     const columnWidths = new Map();
     let detailContext = null, detailPage = 0;
@@ -489,7 +490,7 @@
           let cls = 'cell';
           let text;
           if (rs.length === 0) {
-            text = pending ? 'running' : (awaitingResult ? 'pending' : '-');
+            text = pending ? (benchPhase || 'running') : (awaitingResult ? 'pending' : '-');
           } else if (skipped === rs.length) {
             text = 'SKIPPED';
             cls += ' skipped';
@@ -504,7 +505,7 @@
           const taskAvg = average(rs.map(r => Number(r.elapsed)));
           let title = taskAvg !== null ? `average ${formatSeconds(taskAvg)} per run` : '';
           if (skipped) title = (title ? title + '; ' : '') + `${skipped} of ${rs.length} run(s) skipped by user`;
-          if (pending) title = (title ? title + '; ' : '') + 'currently running';
+          if (pending) title = (title ? title + '; ' : '') + (benchPhase ? `currently ${benchPhase}` : 'currently running');
           if (awaitingResult && !pending) title = (title ? title + '; ' : '') + 'not completed yet';
           td.title = title;
           td.onclick = () => showDetail(m, t);
@@ -831,6 +832,7 @@
           benchTemperature = Number.isFinite(s.temperature) ? s.temperature : null;
           pendingTask = s.stream_task || '';
           pendingRun = s.stream_run || 0;
+          benchPhase = s.stream_phase || '';
           if (!pollInterval) {
             pollInterval = setInterval(poll, 1000);
           }
@@ -838,6 +840,7 @@
           pendingTask = '';
           pendingRun = 0;
           benchModel = '';
+          benchPhase = '';
           activeTasks = []; benchTemperature = null;
           if (pollInterval) {
             clearInterval(pollInterval);

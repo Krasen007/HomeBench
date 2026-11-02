@@ -42,6 +42,38 @@ class _SkipRequested(Exception):
     pass
 
 
+LOOP_CHECK_INTERVAL = 256
+LOOP_BUFFER_LIMIT = 8000
+LOOP_MIN_PATTERN = 8
+LOOP_MAX_PATTERN = 400
+LOOP_MIN_REPEATS = 10
+LOOP_MIN_REPEATED_CHARS = 400
+
+
+def _detect_repetition_loop(text):
+    """Return True when the end of ``text`` is a short pattern repeated a lot."""
+    if not isinstance(text, str) or len(text) < LOOP_MIN_REPEATED_CHARS:
+        return False
+    tail = text[-LOOP_BUFFER_LIMIT:]
+    max_pattern = min(LOOP_MAX_PATTERN, len(tail) // LOOP_MIN_REPEATS)
+    for period in range(LOOP_MIN_PATTERN, max_pattern + 1):
+        pattern = tail[-period:]
+        if len(pattern.strip()) < LOOP_MIN_PATTERN // 2:
+            continue
+        required = max(LOOP_MIN_REPEATS,
+                       -(-LOOP_MIN_REPEATED_CHARS // period))
+        repeats = 1
+        index = len(tail) - period
+        while repeats < required and index - period >= 0:
+            if tail[index - period:index] != pattern:
+                break
+            repeats += 1
+            index -= period
+        if repeats >= required:
+            return True
+    return False
+
+
 def _urlopen_cancellable(req, timeout, should_cancel):
     if should_cancel is None:
         return urllib.request.urlopen(req, timeout=timeout)
@@ -133,6 +165,22 @@ def chat(base_url, prompt, temperature, max_tokens, timeout, on_token=None,
     response_lines = []
     completion_metadata = {}
     usage = {}
+    loop_buffers = {"content": "", "reasoning": ""}
+    loop_totals = {"content": 0, "reasoning": 0}
+    loop_next = {"content": LOOP_CHECK_INTERVAL,
+                 "reasoning": LOOP_CHECK_INTERVAL}
+
+    def track_for_loops(field, chunk):
+        if not chunk:
+            return
+        buffer = loop_buffers[field] + chunk
+        loop_buffers[field] = buffer[-LOOP_BUFFER_LIMIT:]
+        loop_totals[field] += len(chunk)
+        if loop_totals[field] < loop_next[field]:
+            return
+        loop_next[field] = loop_totals[field] + LOOP_CHECK_INTERVAL
+        if _detect_repetition_loop(buffer):
+            raise _SkipRequested("repetition loop detected")
 
     def consume(payload):
         if isinstance(payload.get("usage"), dict):
@@ -147,6 +195,8 @@ def chat(base_url, prompt, temperature, max_tokens, timeout, on_token=None,
             completion_metadata.update(choices[0])
         if on_token and (content or reasoning):
             on_token({"content": content, "reasoning": reasoning})
+        track_for_loops("content", content)
+        track_for_loops("reasoning", reasoning)
 
     def should_cancel():
         return bool((should_skip and should_skip())
@@ -254,7 +304,9 @@ def chat(base_url, prompt, temperature, max_tokens, timeout, on_token=None,
             details.append(f"completion_tokens={usage['completion_tokens']}")
         detail_text = f" ({', '.join(details)})" if details else ""
         raise ValueError("model server returned no final answer text" + detail_text)
-    # Drop reasoning blocks from "thinking" models (e.g. Qwen3, DeepSeek-R1)
+    if _detect_repetition_loop(text):
+        raise _SkipRequested("repetition loop detected")
+    # Drop reasoning blocks from "thinking" models (e.g., Qwen3, DeepSeek-R1)
     return _sanitize_output(text)
 
 
@@ -388,11 +440,15 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                         reason = task.get("explain", lambda x: "")(output)
                     if skip_requested_now():
                         raise _SkipRequested
-                except _SkipRequested:
+                except _SkipRequested as exc:
                     if should_abort():
                         return batch
-                    output, passed, reason, status = (
-                        "", None, "SKIP: skipped by user", "skipped")
+                    if str(exc):
+                        output, passed, reason, status = (
+                            "", None, f"SKIP: {exc}", "skipped")
+                    else:
+                        output, passed, reason, status = (
+                            "", None, "SKIP: skipped by user", "skipped")
                 except Exception as e:  # server down, timeout, bad response...
                     output, passed, reason = f"[ERROR] {e}", False, "FAIL: " + str(e)
                 elapsed = round(time.perf_counter() - started, 3)
@@ -823,15 +879,22 @@ class Handler(BaseHTTPRequestHandler):
                     if chunk.get("start"):
                         state["stream_task"] = task_id
                         state["stream_run"] = run + 1
-                        state["stream_phase"] = chunk.get("phase", "generating")
+                        state["stream_phase"] = chunk.get("phase", "starting")
                         state["stream_output"] = ""
                         state["stream_reasoning"] = ""
                         return
-                    for field in ("output", "reasoning"):
-                        value = chunk.get("content" if field == "output" else "reasoning", "")
-                        if value:
-                            key = f"stream_{field}"
-                            state[key] = (state[key] + value)[-STREAM_PREVIEW_LIMIT:]
+                    reasoning = chunk.get("reasoning", "")
+                    if reasoning:
+                        state["stream_reasoning"] = (
+                            state["stream_reasoning"] + reasoning
+                        )[-STREAM_PREVIEW_LIMIT:]
+                        state["stream_phase"] = "reasoning"
+                    content = chunk.get("content", "")
+                    if content:
+                        state["stream_output"] = (
+                            state["stream_output"] + content
+                        )[-STREAM_PREVIEW_LIMIT:]
+                        state["stream_phase"] = "generating answer"
 
             def work():
                 try:
