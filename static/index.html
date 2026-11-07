@@ -53,15 +53,20 @@
       </div>
       <pre id="log" hidden></pre>
       <section id="liveStream" class="live-stream" hidden aria-live="polite">
-        <h3 id="liveStreamTitle">Live model output</h3>
+        <div class="live-stream-head">
+          <h3 id="liveStreamTitle">Live model output</h3>
+          <button id="openLiveResult" type="button" hidden>Open in detail</button>
+        </div>
         <details open>
-          <summary>Generated answer</summary>
+          <summary><span id="liveAnswerSummary">Generated answer</span></summary>
           <pre id="liveOutput" class="live-stream-text">Waiting for model output...</pre>
         </details>
         <details id="reasoningDetails" hidden>
-          <summary>Reasoning tokens</summary>
+          <summary><span id="liveReasoningSummary">Reasoning tokens</span></summary>
           <pre id="liveReasoning" class="live-stream-text"></pre>
         </details>
+        <p class="hint live-stream-hint">The finished answer and reasoning are saved with the result.
+          Click a task cell or <em>Open in detail</em> to audit them any time.</p>
       </section>
       <div id="securityWarning"
         style="margin-top:12px;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);font-size:13px;color:var(--muted);">
@@ -91,6 +96,7 @@
     let benchRunning = false, pendingTask = '', pendingRun = 0;
     let benchModel = '';
     let benchPhase = '';
+    let liveRun = null;
     let activeTasks = [], benchTemperature = null;
     const columnWidths = new Map();
     let detailContext = null, detailPage = 0;
@@ -647,6 +653,46 @@
     }
 
 
+    function formatChars(text) {
+      const count = typeof text === 'string' ? text.length : 0;
+      return count.toLocaleString() + ' chars';
+    }
+
+    function copyToClipboard(text) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text);
+      }
+      return new Promise((resolve, reject) => {
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.setAttribute('readonly', '');
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.append(area);
+        area.select();
+        const ok = document.execCommand('copy');
+        area.remove();
+        if (ok) resolve();
+        else reject(new Error('copy failed'));
+      });
+    }
+
+    function copyAction(label, getText) {
+      const button = el('button', label, 'copy-btn');
+      button.type = 'button';
+      button.onclick = async event => {
+        event.stopPropagation();
+        try {
+          await copyToClipboard(String(getText() || ''));
+          button.textContent = 'Copied';
+          setTimeout(() => { button.textContent = label; }, 1200);
+        } catch (err) {
+          alert('Could not copy: ' + err.message);
+        }
+      };
+      return button;
+    }
+
     function renderDetailRun(r, index) {
       const d = $('detailRuns');
       const outDiv = document.createElement('div');
@@ -662,19 +708,29 @@
         const noteEl = el('div', 'Note: ' + r.note, 'note');
         d.append(noteEl);
       }
-      const delBtn = el('button', 'Delete this run');
-      delBtn.className = 'row';
-      delBtn.style.marginLeft = '0';
-      delBtn.onclick = async (e) => {
-        e.stopPropagation();
-        if (!confirm(`Delete ${r.model} / ${r.task} run ${r.run}?`)) return;
-        const res = await api('/api/delete_rows', {
-          model: r.model, task: r.task, batch: r.batch, run: r.run
-        });
-        if (res.error) { alert(res.error); return; }
-        loadResults();
-      };
-      d.append(delBtn);
+      // Reasoning is stored verbatim and shown as text, never parsed as markup,
+      // so the audit view reproduces exactly what the model emitted.
+      const reasoning = typeof r.reasoning === 'string' ? r.reasoning : '';
+      if (reasoning) {
+        const details = document.createElement('details');
+        details.className = 'detail-section';
+        const reasoningBar = el('div', undefined, 'section-head');
+        reasoningBar.append(copyAction('Copy reasoning', () => reasoning));
+        details.append(
+          el('summary', `Reasoning tokens (${formatChars(reasoning)})`),
+          reasoningBar,
+          el('pre', reasoning, 'reasoning-text')
+        );
+        d.append(details);
+      } else if (r.reasoning === undefined) {
+        d.append(el('p', 'Reasoning was not stored for this run (older result).', 'hint'));
+      }
+      const answerBar = el('div', undefined, 'section-head');
+      answerBar.append(
+        el('span', 'Generated answer', 'section-title'),
+        copyAction('Copy answer', () => r.output || '')
+      );
+      d.append(answerBar);
       const html = extractHtml(r.output);
       if (html) {
         const iframe = document.createElement('iframe');
@@ -704,6 +760,19 @@
         d.append(btnRow, iframe);
       }
       d.append(outDiv);
+      const delBtn = el('button', 'Delete this run');
+      delBtn.className = 'row';
+      delBtn.style.marginLeft = '0';
+      delBtn.onclick = async (e) => {
+        e.stopPropagation();
+        if (!confirm(`Delete ${r.model} / ${r.task} run ${r.run}?`)) return;
+        const res = await api('/api/delete_rows', {
+          model: r.model, task: r.task, batch: r.batch, run: r.run
+        });
+        if (res.error) { alert(res.error); return; }
+        loadResults();
+      };
+      d.append(delBtn);
     }
 
     function buildPages(model) {
@@ -875,13 +944,26 @@
           $('liveOutput').textContent = s.stream_output || 'Waiting for answer tokens...';
           $('liveReasoning').textContent = s.stream_reasoning || '';
           $('reasoningDetails').hidden = !s.stream_reasoning;
+          $('liveAnswerSummary').textContent =
+            `Generated answer (${formatChars(s.stream_output || '')})`;
+          $('liveReasoningSummary').textContent =
+            `Reasoning tokens (${formatChars(s.stream_reasoning || '')})`;
           autoscroll($('liveOutput'));
           autoscroll($('liveReasoning'));
         }
+        if (s.stream_task && s.model) liveRun = { model: s.model, task: s.stream_task };
+        else if (!s.running) liveRun = null;
+        $('openLiveResult').hidden = !(liveRun && !s.running);
         if (s.running || wasRunning) await loadResults();
         wasRunning = s.running;
       } catch (e) { $('status').textContent = 'Cannot reach web_bench.py server'; }
     }
+
+    $('openLiveResult').onclick = () => {
+      if (!liveRun) return;
+      const task = TASKS.find(t => t.id === liveRun.task);
+      if (task) showDetail(liveRun.model, task);
+    };
 
     $('detect').onclick = async () => {
       const url = $('url').value.trim();

@@ -11,3 +11,7 @@ Mapped to tests/test_history_84_loop_failure_and_archived_history.py. The loop a
 only fix Fix the pass condition: in _weather_status, when expected_temperature is supplied, accept a bare number that equals the observation (keep the unit requirement for the standalone check() path); optionally also change the follow-up wording to show 13.0°C.
 
 Mapped to tests/test_history_85_weather_bare_observation_answer.py.
+
+when i run the benchmark i want to be able to read the reasoning tokens and the generated answer for each task, currently its showing it only when the model writes it but after that i cannot audit it, we should think of a way to optimize the web ui to incorporate everything that will serve a purpose the Live model output and the detail card
+
+Mapped to tests/test_history_86_reasoning_audit_in_results.py.

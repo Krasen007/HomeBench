@@ -96,7 +96,13 @@ the pass or failure plus the elapsed time for that run.
 
 ### 4. Inspect and manage results
 
-- Select a result cell to view its task prompt, answer, and pass/fail reason.
+- Select a result cell to view its task prompt, the model's reasoning tokens and
+  generated answer (each with a copy button), and pass/fail reason. Reasoning is
+  collapsed by default; older results recorded before reasoning was stored show
+  a note instead.
+- While a benchmark is running, the **Live model output** panel streams the
+  answer and reasoning as they arrive. When the run finishes, use **Open in
+  detail** there (or select the result cell) to read the saved copy at any time.
 - While a benchmark is running, its row appears immediately; queued tasks that
   have no result yet show **pending**.
 - The **time** column shows the total elapsed time as `m:ss` across that model's runs;
@@ -111,9 +117,9 @@ the pass or failure plus the elapsed time for that run.
   results** to remove saved results.
 
 Results are stored in `results.jsonl` in the application directory. Each line
-is a JSON object containing the model label, task, answer, pass/fail status,
-explanation, temperature, elapsed time, and run notes. Keep a copy of this file
-if you want to back up or transfer benchmark history.
+is a JSON object containing the model label, task, answer, reasoning tokens,
+pass/fail status, explanation, temperature, elapsed time, and run notes. Keep a
+copy of this file if you want to back up or transfer benchmark history.
 
 ## Security note
 

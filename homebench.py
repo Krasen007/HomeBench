@@ -361,11 +361,19 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                     return batch
                 started = time.perf_counter()
                 skip_requested = {"value": False}
+                reasoning_parts = []
 
                 def skip_requested_now():
                     if not skip_requested["value"]:
                         skip_requested["value"] = bool(should_skip())
                     return skip_requested["value"]
+
+                def capture_token(chunk, task_id=task["id"], current_run=run):
+                    reasoning = chunk.get("reasoning") if isinstance(chunk, dict) else ""
+                    if isinstance(reasoning, str) and reasoning:
+                        reasoning_parts.append(reasoning)
+                    if on_token:
+                        on_token(task_id, current_run, chunk)
 
                 if on_token:
                     on_token(task["id"], run, {"start": True})
@@ -373,10 +381,7 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                     status = "run"
                     chat_kwargs = {}
                     if on_token:
-                        chat_kwargs["on_token"] = (
-                            lambda chunk, task_id=task["id"], run=run:
-                            on_token(task_id, run, chunk)
-                        )
+                        chat_kwargs["on_token"] = capture_token
                     if abort_callback_provided:
                         chat_kwargs["should_abort"] = should_abort
                     output = chat(url, task["prompt"], temperature,
@@ -421,10 +426,7 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                                     })
                                 answer_kwargs = {}
                                 if on_token:
-                                    answer_kwargs["on_token"] = (
-                                        lambda chunk, task_id=task["id"], run=run:
-                                        on_token(task_id, run, chunk)
-                                    )
+                                    answer_kwargs["on_token"] = capture_token
                                 if abort_callback_provided:
                                     answer_kwargs["should_abort"] = should_abort
                                 answer = chat(
@@ -468,7 +470,8 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                     "batch": batch, "model": name, "task": task["id"],
                     "run": run, "passed": passed, "reason": reason,
                     "status": status,
-                    "output": output, "note": note, "temperature": temperature,
+                    "output": output, "reasoning": "".join(reasoning_parts),
+                    "note": note, "temperature": temperature,
                     "elapsed": elapsed,
                 }
                 out.write(json.dumps(row) + "\n")

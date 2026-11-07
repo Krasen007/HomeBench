@@ -170,6 +170,65 @@ input {
   font-size: 14px;
 }
 
+.live-stream-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.live-stream-head h3 {
+  margin: 0;
+}
+
+.live-stream-head button {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.live-stream-hint {
+  margin-top: 8px;
+  margin-bottom: 0;
+}
+
+.detail-section {
+  margin: 10px 0;
+}
+
+.detail-section summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 2px;
+}
+
+.section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.copy-btn {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+.reasoning-text {
+  max-height: 360px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  overscroll-behavior: contain;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
+
 .live-stream details {
   margin-top: 6px;
 }
