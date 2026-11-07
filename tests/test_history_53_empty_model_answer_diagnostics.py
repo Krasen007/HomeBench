@@ -45,7 +45,7 @@ def test_run_benchmark_persists_response_diagnostic(tmp_path, monkeypatch):
     monkeypatch.setattr(homebench, "TASKS", [task])
     monkeypatch.setattr(
         homebench, "chat",
-        lambda *args, should_skip=None: (_ for _ in ()).throw(
+        lambda *args, should_skip=None, on_token=None: (_ for _ in ()).throw(
             ValueError("model server returned no final answer text (finish_reason=length)")
         ),
     )

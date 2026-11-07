@@ -54,13 +54,41 @@ LOOP_MIN_PATTERN = 8
 LOOP_MAX_PATTERN = 400
 LOOP_MIN_REPEATS = 10
 LOOP_MIN_REPEATED_CHARS = 400
+LOOP_LINE_MIN_CHARS = 25
+LOOP_LINE_MIN_REPEATS = 4
+
+
+def _has_repeated_long_line(text):
+    """Return True when one normalized line appears ``LOOP_LINE_MIN_REPEATS`` times.
+
+    Lines shorter than ``LOOP_LINE_MIN_CHARS``, lines without any word
+    character (separator rules, brackets), and lines that do not end a
+    sentence (generated code such as repeated audio or spawn assignments)
+    are ignored.
+    """
+    counts = {}
+    for raw_line in text.splitlines():
+        line = " ".join(raw_line.split())
+        if (len(line) < LOOP_LINE_MIN_CHARS
+                or not re.search(r"\w", line)
+                or not line.endswith((".", "!", "?"))):
+            continue
+        count = counts.get(line, 0) + 1
+        if count >= LOOP_LINE_MIN_REPEATS:
+            return True
+        counts[line] = count
+    return False
 
 
 def _detect_repetition_loop(text):
-    """Return True when the end of ``text`` is a short pattern repeated a lot."""
-    if not isinstance(text, str) or len(text) < LOOP_MIN_REPEATED_CHARS:
+    """Return True when ``text`` repeats one long line or a short pattern."""
+    if not isinstance(text, str):
         return False
     tail = text[-LOOP_BUFFER_LIMIT:]
+    if _has_repeated_long_line(tail):
+        return True
+    if len(text) < LOOP_MIN_REPEATED_CHARS:
+        return False
     max_pattern = min(LOOP_MAX_PATTERN, len(tail) // LOOP_MIN_REPEATS)
     for period in range(LOOP_MIN_PATTERN, max_pattern + 1):
         pattern = tail[-period:]

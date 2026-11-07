@@ -16,7 +16,7 @@ def test_run_saves_the_explanation_for_both_pass_and_fail(tmp_path, monkeypatch)
     ):
         monkeypatch.setattr(
             homebench, "chat",
-            lambda *args, should_skip=None, value=output: value,
+            lambda *args, should_skip=None, on_token=None, value=output: value,
         )
         homebench.run_benchmark("http://localhost:8080", "model", 1, 0, 10, 10, out)
 

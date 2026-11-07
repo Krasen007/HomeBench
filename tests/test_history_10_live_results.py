@@ -14,7 +14,8 @@ def test_result_is_flushed_before_progress_callback(tmp_path, monkeypatch):
     }
     monkeypatch.setattr(homebench, "TASKS", [task])
     monkeypatch.setattr(
-        homebench, "chat", lambda *args, should_skip=None: "answer"
+        homebench, "chat",
+        lambda *args, should_skip=None, on_token=None: "answer"
     )
     out = tmp_path / "results.jsonl"
     observed = []

@@ -20,3 +20,25 @@ Review comment at @homebench.py around lines 364 - 376:
 Update both chat invocation paths in run_benchmark to always pass capture_token as the token callback, regardless of whether on_token is set. Keep capture_token’s existing guard when forwarding tokens to on_token so reasoning is recorded without requiring an external callback.
 
 Mapped to tests/test_history_87_reasoning_capture_without_live_callback.py.
+
+we tried to add some sort of loop detection, but now i got this, can you check? Now, let's write the code.
+
+We'll also need to handle the spawn interval reduction: we'll set spawnInterval to a random between 0.3 and 0.8 seconds when the condition is met. We'll need to ensure that the spawn interval is in milliseconds.
+
+Now, let's write the code.
+
+We'll also need to handle the spawn interval reduction: we'll check after each yellow coin collection if the time since last collection is less than current spawnInterval. We'll need to know when the last collection occurred. We'll store lastCollectionTime. We'll update it on each collection.
+
+Now, let's write the code.
+
+We'll also need to handle the spawn interval reduction: we'll set spawnInterval to a random between 0.3 and 0.8 seconds when the condition is met. We'll need to ensure that the spawn interval is in milliseconds.
+
+Now, let's write the code.
+
+We'll also need to handle the spawn interval reduction: we'll check after each yellow coin collection if the time since last collection is
+
+Mapped to tests/test_history_88_long_cycle_loop_detection.py.
+
+it should fail and trigger as soon as the same appears 4 times
+
+Mapped to tests/test_history_89_loop_trigger_after_four_repeats.py.
