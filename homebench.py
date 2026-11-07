@@ -379,9 +379,7 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                     on_token(task["id"], run, {"start": True})
                 try:
                     status = "run"
-                    chat_kwargs = {}
-                    if on_token:
-                        chat_kwargs["on_token"] = capture_token
+                    chat_kwargs = {"on_token": capture_token}
                     if abort_callback_provided:
                         chat_kwargs["should_abort"] = should_abort
                     output = chat(url, task["prompt"], temperature,
@@ -424,9 +422,7 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                                         f"Observed temperature: {observation['temperature_c']}°C\n",
                                         "reasoning": "",
                                     })
-                                answer_kwargs = {}
-                                if on_token:
-                                    answer_kwargs["on_token"] = capture_token
+                                answer_kwargs = {"on_token": capture_token}
                                 if abort_callback_provided:
                                     answer_kwargs["should_abort"] = should_abort
                                 answer = chat(

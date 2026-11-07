@@ -15,3 +15,8 @@ Mapped to tests/test_history_85_weather_bare_observation_answer.py.
 when i run the benchmark i want to be able to read the reasoning tokens and the generated answer for each task, currently its showing it only when the model writes it but after that i cannot audit it, we should think of a way to optimize the web ui to incorporate everything that will serve a purpose the Live model output and the detail card
 
 Mapped to tests/test_history_86_reasoning_audit_in_results.py.
+
+Review comment at @homebench.py around lines 364 - 376:
+Update both chat invocation paths in run_benchmark to always pass capture_token as the token callback, regardless of whether on_token is set. Keep capture_token’s existing guard when forwarding tokens to on_token so reasoning is recorded without requiring an external callback.
+
+Mapped to tests/test_history_87_reasoning_capture_without_live_callback.py.
