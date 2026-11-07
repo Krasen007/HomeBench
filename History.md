@@ -7,3 +7,7 @@ Mapped to tests/test_history_83_running_phase_and_loop_autoskip.py.
 1. if looping is detected it should be marked as failed, then continue to the next test in the suite. 2. point the tests at History-v1.2.md
 
 Mapped to tests/test_history_84_loop_failure_and_archived_history.py. The loop auto-skip behavior in test_history_83 no longer applies; test_history_83 now covers only the reasoning/generating phase text.
+
+only fix Fix the pass condition: in _weather_status, when expected_temperature is supplied, accept a bare number that equals the observation (keep the unit requirement for the standalone check() path); optionally also change the follow-up wording to show 13.0°C.
+
+Mapped to tests/test_history_85_weather_bare_observation_answer.py.
