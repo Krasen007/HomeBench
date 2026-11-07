@@ -42,3 +42,9 @@ Mapped to tests/test_history_88_long_cycle_loop_detection.py.
 it should fail and trigger as soon as the same appears 4 times
 
 Mapped to tests/test_history_89_loop_trigger_after_four_repeats.py.
+
+Keep the punctuation guard (line.endswith(...)) to protect code structures.
+
+Run a quick sweep on the test suite after cleaning up any dead on_token mock signatures to see if those 3 pre-existing failures clear up.
+
+Mapped to tests/test_history_04_pass_fail_conditions.py, tests/test_history_10_live_results.py, tests/test_history_53_empty_model_answer_diagnostics.py, tests/test_history_54_checkbox_task_selection.py.

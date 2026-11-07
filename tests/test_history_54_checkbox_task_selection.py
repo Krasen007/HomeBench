@@ -99,7 +99,7 @@ def test_benchmark_core_runs_selected_task_ids_only(tmp_path, monkeypatch):
         {"id": "game", "prompt": "", "check": lambda _: True},
     ]
     monkeypatch.setattr(homebench, "TASKS", tasks)
-    monkeypatch.setattr(homebench, "chat", lambda *args: "result")
+    monkeypatch.setattr(homebench, "chat", lambda *args, **kwargs: "result")
     out = tmp_path / "results.jsonl"
 
     homebench.run_benchmark(
