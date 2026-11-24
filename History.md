@@ -113,3 +113,7 @@ When I click Skip task, save the current streamed answer and any completed subta
 
 Mapped to tests/test_history_97_skip_partial_result.py.
 
+Fix the review findings for skipped weather follow-ups and incomplete thinking blocks: preserve weather request/result context with partial or completed follow-up answers, and exclude unterminated thinking from partial grades while retaining it for reasoning audit.
+
+Mapped to tests/test_history_98_skip_weather_and_thinking.py.
+

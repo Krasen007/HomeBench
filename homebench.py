@@ -165,6 +165,29 @@ def _sanitize_output(text):
     return text
 
 
+def _split_partial_output(text):
+    """Separate captured thinking blocks from answer text, including an open block."""
+    answer_parts = []
+    reasoning_parts = []
+    position = 0
+    while True:
+        opening = re.search(r"<thinking>", text[position:], re.IGNORECASE)
+        if opening is None:
+            answer_parts.append(text[position:])
+            break
+        start = position + opening.start()
+        answer_parts.append(text[position:start])
+        content_start = position + opening.end()
+        closing = re.search(r"</thinking>", text[content_start:], re.IGNORECASE)
+        if closing is None:
+            reasoning_parts.append(text[start:])
+            break
+        end = content_start + closing.end()
+        reasoning_parts.append(text[start:end])
+        position = end
+    return _sanitize_output("".join(answer_parts)), "".join(reasoning_parts)
+
+
 def _stream_delta(payload):
     choices = payload.get("choices") or []
     if not choices or not isinstance(choices[0], dict):
@@ -393,6 +416,9 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                 captured_content = {"parts": []}
                 item_results = []
                 partial_grade = None
+                weather_context = None
+                weather_observation = None
+                weather_follow_up_answer = None
 
                 def skip_requested_now():
                     if not skip_requested["value"]:
@@ -447,9 +473,11 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                                 item_passed = False
                                 item_reason = "FAIL: repetition loop detected"
                             except _SkipRequested:
-                                item_output = _sanitize_output(
+                                item_output, captured_reasoning = _split_partial_output(
                                     "".join(captured_content["parts"])
                                 )
+                                if captured_reasoning:
+                                    reasoning_parts.append(captured_reasoning)
                                 item_passed, item_reason = item.status(item_output)
                                 item_results.append((
                                     item.label, item_output, item_passed, item_reason
@@ -493,6 +521,16 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                                 passed = False
                                 reason = "FAIL: weather tool could not be executed: " + str(exc)
                             else:
+                                weather_observation = observation
+                                weather_context = (
+                                    "Weather tool request:\n"
+                                    + json.dumps(tool_request, indent=2)
+                                    + "\n\nWeather tool result:\n"
+                                    + json.dumps(observation, indent=2)
+                                    + "\n\nFinal answer:\n"
+                                )
+                                output = weather_context
+                                captured_content["parts"] = []
                                 if skip_requested_now():
                                     raise _SkipRequested
                                 if on_token:
@@ -505,24 +543,19 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                                         f"Observed temperature: {observation['temperature_c']}°C\n",
                                         "reasoning": "",
                                     })
+                                captured_content["parts"] = []
                                 answer_kwargs = {"on_token": capture_token}
                                 if abort_callback_provided:
                                     answer_kwargs["should_abort"] = should_abort
-                                answer = chat(
+                                weather_follow_up_answer = chat(
                                     url, weather.follow_up_prompt(observation),
                                     temperature, max_tokens, timeout,
                                     should_skip=skip_requested_now,
                                     **answer_kwargs)
-                                output = (
-                                    "Weather tool request:\n"
-                                    + json.dumps(tool_request, indent=2)
-                                    + "\n\nWeather tool result:\n"
-                                    + json.dumps(observation, indent=2)
-                                    + "\n\nFinal answer:\n"
-                                    + answer
-                                )
+                                output = weather_context + weather_follow_up_answer
                                 passed, reason = weather._weather_status(
-                                    answer, observation["temperature_c"])
+                                    weather_follow_up_answer,
+                                    observation["temperature_c"])
                     elif items is None:
                         if check_for_run:
                             passed = bool(check_for_run(output, run))
@@ -567,11 +600,31 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                                 "passed": None,
                                 "reason": partial_reason,
                             }
-                    else:
-                        if not output:
-                            output = _sanitize_output(
+                    elif weather_context is not None:
+                        if weather_follow_up_answer is None:
+                            partial_answer, captured_reasoning = _split_partial_output(
                                 "".join(captured_content["parts"])
                             )
+                            if captured_reasoning:
+                                reasoning_parts.append(captured_reasoning)
+                        else:
+                            partial_answer = weather_follow_up_answer
+                        output = weather_context + partial_answer
+                        partial_passed, partial_reason = weather._weather_status(
+                            partial_answer,
+                            weather_observation["temperature_c"],
+                        )
+                        partial_grade = {
+                            "passed": partial_passed,
+                            "reason": partial_reason,
+                        }
+                    else:
+                        if not output:
+                            output, captured_reasoning = _split_partial_output(
+                                "".join(captured_content["parts"])
+                            )
+                            if captured_reasoning:
+                                reasoning_parts.append(captured_reasoning)
                         if output.strip():
                             if check_for_run:
                                 partial_passed = bool(check_for_run(output, run))
