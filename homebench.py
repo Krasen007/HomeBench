@@ -390,6 +390,9 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                 started = time.perf_counter()
                 skip_requested = {"value": False}
                 reasoning_parts = []
+                captured_content = {"parts": []}
+                item_results = []
+                partial_grade = None
 
                 def skip_requested_now():
                     if not skip_requested["value"]:
@@ -397,6 +400,9 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                     return skip_requested["value"]
 
                 def capture_token(chunk, task_id=task["id"], current_run=run):
+                    content = chunk.get("content") if isinstance(chunk, dict) else ""
+                    if isinstance(content, str) and content:
+                        captured_content["parts"].append(content)
                     reasoning = chunk.get("reasoning") if isinstance(chunk, dict) else ""
                     if isinstance(reasoning, str) and reasoning:
                         reasoning_parts.append(reasoning)
@@ -421,7 +427,6 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                     if abort_callback_provided:
                         chat_kwargs["should_abort"] = should_abort
                     if items is not None:
-                        results = []
                         for index, item in enumerate(items, 1):
                             if should_abort():
                                 return batch
@@ -432,6 +437,7 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                                     "start": True,
                                     "phase": f"file {index}/{len(items)}: {item.label}",
                                 })
+                            captured_content["parts"] = []
                             try:
                                 item_output = chat(
                                     url, item.prompt, temperature, max_tokens, timeout,
@@ -440,15 +446,25 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                                 item_output = exc.output or "[repetition loop detected]"
                                 item_passed = False
                                 item_reason = "FAIL: repetition loop detected"
-                            else:
-                                if skip_requested_now():
-                                    raise _SkipRequested
+                            except _SkipRequested:
+                                item_output = _sanitize_output(
+                                    "".join(captured_content["parts"])
+                                )
                                 item_passed, item_reason = item.status(item_output)
-                            results.append((item.label, item_output,
-                                            item_passed, item_reason))
-                        output = task["render_output"](results)
-                        passed, reason = task["aggregate"](results)
+                                item_results.append((
+                                    item.label, item_output, item_passed, item_reason
+                                ))
+                                raise
+                            else:
+                                item_passed, item_reason = item.status(item_output)
+                            item_results.append((item.label, item_output,
+                                                 item_passed, item_reason))
+                            if skip_requested_now():
+                                raise _SkipRequested
+                        output = task["render_output"](item_results)
+                        passed, reason = task["aggregate"](item_results)
                     else:
+                        captured_content["parts"] = []
                         output = chat(url, prompt, temperature,
                                       max_tokens, timeout,
                                       should_skip=skip_requested_now,
@@ -532,6 +548,45 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                     else:
                         output, passed, reason, status = (
                             "", None, "SKIP: skipped by user", "skipped")
+                    if items is not None:
+                        if item_results:
+                            output = task["render_output"](item_results)
+                            correct = sum(1 for item_result in item_results
+                                          if item_result[2])
+                            partial_reason = (
+                                f"{correct}/{len(item_results)} captured texts "
+                                f"fully correct; processed {len(item_results)} "
+                                f"of {len(items)}"
+                            )
+                            last_result = item_results[-1]
+                            if not last_result[2]:
+                                partial_reason += (
+                                    f"; latest ({last_result[0]}): {last_result[3]}"
+                                )
+                            partial_grade = {
+                                "passed": None,
+                                "reason": partial_reason,
+                            }
+                    else:
+                        if not output:
+                            output = _sanitize_output(
+                                "".join(captured_content["parts"])
+                            )
+                        if output.strip():
+                            if check_for_run:
+                                partial_passed = bool(check_for_run(output, run))
+                            else:
+                                partial_passed = bool(task["check"](output))
+                            if explain_for_run:
+                                partial_reason = explain_for_run(output, run)
+                            else:
+                                partial_reason = task.get(
+                                    "explain", lambda x: ""
+                                )(output)
+                            partial_grade = {
+                                "passed": partial_passed,
+                                "reason": partial_reason,
+                            }
                 except Exception as e:  # server down, timeout, bad response...
                     output, passed, reason = f"[ERROR] {e}", False, "FAIL: " + str(e)
                 elapsed = round(time.perf_counter() - started, 3)
@@ -545,6 +600,8 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                 }
                 if item_prompts is not None:
                     row["item_prompts"] = item_prompts
+                if partial_grade is not None:
+                    row["partial_grade"] = partial_grade
                 out.write(json.dumps(row) + "\n")
                 out.flush()
                 if on_result:

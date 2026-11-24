@@ -109,3 +109,7 @@ I ran reasoningbg_full. Its detail view shows a generic prompt listing all 232 f
 
 Mapped to tests/test_history_96_reasoningbg_full_prompt_audit.py.
 
+When I click Skip task, save the current streamed answer and any completed subtask answers so skipped runs remain auditable and their captured output can still be graded.
+
+Mapped to tests/test_history_97_skip_partial_result.py.
+

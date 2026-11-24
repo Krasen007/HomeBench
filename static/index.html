@@ -710,6 +710,17 @@
       reasonEl.textContent = r.reason || (skipped ? 'SKIPPED' : r.passed ? 'PASS' : 'FAIL');
       const elapsedText = Number.isFinite(Number(r.elapsed)) ? ` — ${formatSeconds(Number(r.elapsed))}` : '';
       d.append(el('label', `Run ${index + 1}: ${skipped ? 'SKIPPED' : r.passed ? 'PASS' : 'FAIL'}${elapsedText}`), reasonEl);
+      if (skipped && r.partial_grade && typeof r.partial_grade.reason === 'string') {
+        const partial = r.partial_grade;
+        const partialClass = partial.passed === true ? 'pass'
+          : partial.passed === false ? 'fail' : 'skipped';
+        const gradeLabel = partial.passed === true ? 'PASS'
+          : partial.passed === false ? 'FAIL' : 'PROGRESS';
+        const grade = document.createElement('div');
+        grade.className = 'reason ' + partialClass;
+        grade.textContent = `Partial grade (${gradeLabel}): ${partial.reason}`;
+        d.append(grade);
+      }
       if (r.note) {
         const noteEl = el('div', 'Note: ' + r.note, 'note');
         d.append(noteEl);
