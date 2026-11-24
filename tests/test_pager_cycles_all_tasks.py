@@ -16,6 +16,7 @@ def test_pager_walks_all_tasks_of_the_model():
         "if (pages.length > 1) {",
         # header and prompt follow the current task
         "detailContext.header.textContent = `${detailContext.model} / ${taskId}`",
-        "detailContext.promptDiv.innerHTML = t ? renderMarkdown(t.prompt) : ''",
+        "const promptText = current && current.run.prompt ? current.run.prompt : (t ? t.prompt : '')",
+        "detailContext.promptDiv.innerHTML = renderMarkdown(promptText)",
     ):
         assert content in HTML

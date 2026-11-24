@@ -4,7 +4,7 @@ includes](static/favicon.ico)
 
 HomeBench is a lightweight benchmark for comparing small language models served
 locally by [llama.cpp](https://github.com/ggml-org/llama.cpp). It provides a
-browser-based interface for running eight repeatable tasks, inspecting the
+browser-based interface for running fourteen repeatable tasks, inspecting the
 model's answers and pass/fail explanations, and keeping results across runs.
 
 The application uses Python's standard library and has no Python package
@@ -17,7 +17,7 @@ completions endpoint.
 
 ## What it tests
 
-The benchmark includes nine tasks:
+The benchmark includes fourteen tasks:
 
 | Task | What it checks |
 | --- | --- |
@@ -30,6 +30,11 @@ The benchmark includes nine tasks:
 | `bulgarian` | Correct Bulgarian definite-article usage |
 | `weather` | Extracting current Celsius from a simulated skill-guided weather response and ignoring injected instructions; does not fetch live weather |
 | `game_solved` | Generating a complete toddler HTML5 game with all required features |
+| `spelling_grammar` | Answering Bulgarian spelling and grammar multiple-choice questions from the supplied CSV |
+| `april_uprising` | Answering multiple-choice questions about the April Uprising from the supplied CSV |
+| `contemporary_bulgarian_poets` | Answering multiple-choice questions about contemporary Bulgarian poets from the supplied CSV |
+| `modern_economy_of_bulgaria` | Answering multiple-choice questions about the modern economy of Bulgaria from the supplied CSV |
+| `reasoningbg` | Answering multiple-choice reading-comprehension questions; each run uses the next text from `tasks/ReasoningBG` |
 
 ## Requirements
 

@@ -113,6 +113,11 @@
       bulgarian: 'Correct Bulgarian definite-article usage',
       weather: 'Agentic tool use: check weather via skill and answer in Celsius',
       game_solved: 'Generate a complete toddler HTML5 game with all features',
+      spelling_grammar: 'Answer Bulgarian spelling and grammar multiple-choice questions',
+      april_uprising: 'Answer multiple-choice questions about the April Uprising',
+      contemporary_bulgarian_poets: 'Answer multiple-choice questions about contemporary Bulgarian poets',
+      modern_economy_of_bulgaria: 'Answer multiple-choice questions about the modern economy of Bulgaria',
+      reasoningbg: 'Answer reading-comprehension questions from a rotating Bulgarian text',
     };
 
     function el(tag, text, cls) {
@@ -805,11 +810,13 @@
 
       // Re-render the header and prompt when we move to another task.
       const taskId = current ? current.task.id : detailContext.taskId;
-      if (taskId !== detailContext.taskId) {
+      const t = TASKS.find(t => t.id === taskId);
+      const promptText = current && current.run.prompt ? current.run.prompt : (t ? t.prompt : '');
+      if (taskId !== detailContext.taskId || promptText !== detailContext.promptText) {
         detailContext.taskId = taskId;
-        const t = TASKS.find(t => t.id === taskId);
+        detailContext.promptText = promptText;
         detailContext.header.textContent = `${detailContext.model} / ${taskId}`;
-        detailContext.promptDiv.innerHTML = t ? renderMarkdown(t.prompt) : '';
+        detailContext.promptDiv.innerHTML = renderMarkdown(promptText);
       }
 
       // Rebuild only when the visible run changes: the poll during a run must not
@@ -855,7 +862,7 @@
       pager.id = 'detailPager';
       pager.className = 'row';
       d.replaceChildren(header, el('label', 'Prompt'), promptDiv, pager, runsContainer);
-      detailContext = { model, taskId: task.id, header, promptDiv };
+      detailContext = { model, taskId: task.id, promptText: task.prompt, header, promptDiv };
       // Start pager on the first run page of the clicked task, not page 0 of all tasks.
       const pages = buildPages(model);
       detailPage = pages.findIndex(p => p.task.id === task.id);

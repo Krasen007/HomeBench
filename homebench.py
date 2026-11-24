@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-homebench.py - a tiny 8-task LLM benchmark for llama.cpp (llama-server).
+homebench.py - a tiny 14-task LLM benchmark for llama.cpp (llama-server).
 
 Starts a web UI at http://localhost:8000. Open it in your browser, enter a
 llama-server URL, and run benchmarks. Results accumulate in results.jsonl.
@@ -403,6 +403,10 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                     if on_token:
                         on_token(task_id, current_run, chunk)
 
+                prompt_for_run = task.get("prompt_for_run")
+                prompt = prompt_for_run(run) if prompt_for_run else task["prompt"]
+                check_for_run = task.get("check_for_run")
+                explain_for_run = task.get("explain_for_run")
                 if on_token:
                     on_token(task["id"], run, {"start": True})
                 try:
@@ -410,7 +414,7 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                     chat_kwargs = {"on_token": capture_token}
                     if abort_callback_provided:
                         chat_kwargs["should_abort"] = should_abort
-                    output = chat(url, task["prompt"], temperature,
+                    output = chat(url, prompt, temperature,
                                   max_tokens, timeout,
                                   should_skip=skip_requested_now,
                                   **chat_kwargs)
@@ -469,8 +473,14 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                                 passed, reason = weather._weather_status(
                                     answer, observation["temperature_c"])
                     else:
-                        passed = bool(task["check"](output))
-                        reason = task.get("explain", lambda x: "")(output)
+                        if check_for_run:
+                            passed = bool(check_for_run(output, run))
+                        else:
+                            passed = bool(task["check"](output))
+                        if explain_for_run:
+                            reason = explain_for_run(output, run)
+                        else:
+                            reason = task.get("explain", lambda x: "")(output)
                     if skip_requested_now():
                         raise _SkipRequested
                 except _LoopDetected as exc:
@@ -492,7 +502,7 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                 elapsed = round(time.perf_counter() - started, 3)
                 row = {
                     "batch": batch, "model": name, "task": task["id"],
-                    "run": run, "passed": passed, "reason": reason,
+                    "run": run, "prompt": prompt, "passed": passed, "reason": reason,
                     "status": status,
                     "output": output, "reasoning": "".join(reasoning_parts),
                     "note": note, "temperature": temperature,

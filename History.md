@@ -48,3 +48,53 @@ Keep the punctuation guard (line.endswith(...)) to protect code structures.
 Run a quick sweep on the test suite after cleaning up any dead on_token mock signatures to see if those 3 pre-existing failures clear up.
 
 Mapped to tests/test_history_04_pass_fail_conditions.py, tests/test_history_10_live_results.py, tests/test_history_53_empty_model_answer_diagnostics.py, tests/test_history_54_checkbox_task_selection.py.
+
+i added a new test file to the repo its located here "F:\AI\repos\HomeBench\tests\Spelling and Grammar.csv" it contains bulgarian questions, four possible options and a colum with the correct answer, i want to implement this as a test in the benchmark
+
+Mapped to tests/test_history_90_csv_spelling_grammar_task.py.
+
+Confirmed: add the CSV questions as the tenth runnable benchmark task, replacing the earlier nine-task limit.
+
+Mapped to tests/test_history_90_csv_spelling_grammar_task.py.
+
+i ran the test against one model i got FAIL: expected 118 answers, got 54
+However is this the total answers the model gave or the total correct?
+actually i ran one more model i got FAIL: Q1: expected A, got D; Q4: expected C, got D; Q5: expected A, got C; Q6: expected B, got C; Q7: expected B, got C (+81 more)
+
+can we modify the fail check answer to show how many were correct?
+
+Mapped to tests/test_history_91_failure_score.py.
+
+Continue if you have next steps, or stop and ask for clarification if you are unsure how to proceed.
+
+Mapped to tests/test_history_91_failure_score.py.
+
+ok i moved the .csv to a new location "F:\AI\repos\HomeBench\tasks\BulMMLU\Spelling and Grammar.csv"
+also lets implement the rest of the files F:\AI\repos\HomeBench\tasks\BulMMLU\April Uprising.csv F:\AI\repos\HomeBench\tasks\BulMMLU\Contemporary Bulgarian poets.csv F:\AI\repos\HomeBench\tasks\BulMMLU\Modern economy of Bulgaria.csv as tests
+
+Mapped to tests/test_history_92_bulmmlu_tasks.py.
+
+after everything is done i want to implement the tests from the "F:\AI\repos\HomeBench\tasks\ReasoningBG" folder as well
+
+Mapped to tests/test_history_93_reasoningbg_tasks.py.
+
+Confirmed: repair the supplied BulMMLU CSV files to exactly six columns without dropping questions, instead of making the parser tolerant.
+
+Mapped to tests/test_history_94_task_count_14.py.
+i want to implement the tests from the "F:\AI\repos\HomeBench\tasks\ReasoningBG" folder as well
+
+Mapped to tests/test_history_93_reasoningbg_tasks.py.
+
+Chosen: one rotating reasoningbg task that cycles through all 232 texts across runs; final task count 14.
+
+Mapped to tests/test_history_93_reasoningbg_tasks.py.
+
+Confirmed: 14 is correct; this supersedes the earlier confirmation of 13 and the stale task-count assertion mapping.
+
+Mapped to tests/test_history_94_task_count_14.py.
+
+Confirmed: update the five failing registry and UI documentation tests for the 14-task suite and the stored per-run prompt display.
+
+Mapped to tests/test_history_09_extracted_task_modules.py, tests/test_history_12_empty_state.py, tests/test_history_34_readme_how_to_guide.py, tests/test_pager_cycles_all_tasks.py.
+
+
