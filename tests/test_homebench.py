@@ -287,8 +287,11 @@ class TestRunBenchmarkSingleTask(unittest.TestCase):
                 temperature=0.0, max_tokens=16384, timeout=600,
                 out_path="/tmp/results.jsonl",
             )
-        # 8 tasks * 1 run each.
-        self.assertEqual(mock_urlopen.call_count, len(TASKS))
+        expected_calls = sum(
+            len(task["items_for_run"](0)) if "items_for_run" in task else 1
+            for task in TASKS
+        )
+        self.assertEqual(mock_urlopen.call_count, expected_calls)
         written = "".join(call.args[0] for call in mock_file.write.call_args_list)
         tasks_seen = {json.loads(line)["task"] for line in written.strip().splitlines()}
         self.assertEqual(tasks_seen, {t["id"] for t in TASKS})

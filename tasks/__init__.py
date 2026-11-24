@@ -13,6 +13,7 @@ from . import (
     contemporary_bulgarian_poets,
     modern_economy_of_bulgaria,
     reasoningbg,
+    reasoningbg_full,
 )
 
 TASKS = [
@@ -42,4 +43,14 @@ TASKS.append({
     "prompt_for_run": reasoningbg.prompt_for_run,
     "check_for_run": reasoningbg.check_for_run,
     "explain_for_run": reasoningbg.explain_for_run,
+})
+
+TASKS.append({
+    "id": reasoningbg_full.ID,
+    "prompt": reasoningbg_full.PROMPT,
+    "check": reasoningbg_full.check,
+    "explain": reasoningbg_full.explain,
+    "items_for_run": reasoningbg_full.items_for_run,
+    "render_output": reasoningbg_full.render_output,
+    "aggregate": reasoningbg_full.aggregate,
 })

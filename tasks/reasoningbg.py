@@ -183,8 +183,12 @@ def prompt_for_run(run: int) -> str:
     return set_for_run(run).prompt
 
 
+def status_for_set(text: Optional[str], question_set: QuestionSet) -> Tuple[bool, str]:
+    return answer_status(text, question_set.questions)
+
+
 def status_for_run(text: Optional[str], run: int) -> Tuple[bool, str]:
-    return answer_status(text, set_for_run(run).questions)
+    return status_for_set(text, set_for_run(run))
 
 
 def check_for_run(text: Optional[str], run: int) -> bool:
@@ -220,5 +224,6 @@ __all__ = (
     "load_texts",
     "prompt_for_run",
     "set_for_run",
+    "status_for_set",
     "status_for_run",
 )

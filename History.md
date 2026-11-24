@@ -80,21 +80,28 @@ Mapped to tests/test_history_93_reasoningbg_tasks.py.
 
 Confirmed: repair the supplied BulMMLU CSV files to exactly six columns without dropping questions, instead of making the parser tolerant.
 
-Mapped to tests/test_history_94_task_count_14.py.
+Mapped to tests/test_history_92_bulmmlu_tasks.py.
 i want to implement the tests from the "F:\AI\repos\HomeBench\tasks\ReasoningBG" folder as well
 
 Mapped to tests/test_history_93_reasoningbg_tasks.py.
 
-Chosen: one rotating reasoningbg task that cycles through all 232 texts across runs; final task count 14.
+Chosen: one rotating reasoningbg task that cycles through all 232 texts across runs; final task count 14 before reasoningbg_full was added.
 
 Mapped to tests/test_history_93_reasoningbg_tasks.py.
 
-Confirmed: 14 is correct; this supersedes the earlier confirmation of 13 and the stale task-count assertion mapping.
+Confirmed: 14 was correct before reasoningbg_full; this is superseded by 15 after the new full-run task, which makes the earlier 14-task assertion obsolete.
 
-Mapped to tests/test_history_94_task_count_14.py.
+Mapped to tests/test_history_95_reasoningbg_full_task.py.
 
 Confirmed: update the five failing registry and UI documentation tests for the 14-task suite and the stored per-run prompt display.
 
 Mapped to tests/test_history_09_extracted_task_modules.py, tests/test_history_12_empty_state.py, tests/test_history_34_readme_how_to_guide.py, tests/test_pager_cycles_all_tasks.py.
 
+in Tasks to run add one more (reasoningbg full) that runs all 232 files one by one perhaps as separate tasks and checks if the answer is correct.
+
+Mapped to tests/test_history_95_reasoningbg_full_task.py.
+
+Confirmed: update the five failing tests for the 15-task suite and the new reasoningbg_full chat-call count.
+
+Mapped to tests/test_history_95_reasoningbg_full_task.py, tests/test_history_01_small_llama_benchmark.py, tests/test_history_09_extracted_task_modules.py, tests/test_history_34_readme_how_to_guide.py, tests/test_homebench.py.
 

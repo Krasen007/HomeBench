@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-homebench.py - a tiny 14-task LLM benchmark for llama.cpp (llama-server).
+homebench.py - a tiny 15-task LLM benchmark for llama.cpp (llama-server).
 
 Starts a web UI at http://localhost:8000. Open it in your browser, enter a
 llama-server URL, and run benchmarks. Results accumulate in results.jsonl.
@@ -407,6 +407,8 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                 prompt = prompt_for_run(run) if prompt_for_run else task["prompt"]
                 check_for_run = task.get("check_for_run")
                 explain_for_run = task.get("explain_for_run")
+                items_for_run = task.get("items_for_run")
+                items = items_for_run(run) if items_for_run else None
                 if on_token:
                     on_token(task["id"], run, {"start": True})
                 try:
@@ -414,13 +416,42 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                     chat_kwargs = {"on_token": capture_token}
                     if abort_callback_provided:
                         chat_kwargs["should_abort"] = should_abort
-                    output = chat(url, prompt, temperature,
-                                  max_tokens, timeout,
-                                  should_skip=skip_requested_now,
-                                  **chat_kwargs)
-                    if skip_requested_now():
+                    if items is not None:
+                        results = []
+                        for index, item in enumerate(items, 1):
+                            if should_abort():
+                                return batch
+                            if skip_requested_now():
+                                raise _SkipRequested
+                            if on_token:
+                                on_token(task["id"], run, {
+                                    "start": True,
+                                    "phase": f"file {index}/{len(items)}: {item.label}",
+                                })
+                            try:
+                                item_output = chat(
+                                    url, item.prompt, temperature, max_tokens, timeout,
+                                    should_skip=skip_requested_now, **chat_kwargs)
+                            except _LoopDetected as exc:
+                                item_output = exc.output or "[repetition loop detected]"
+                                item_passed = False
+                                item_reason = "FAIL: repetition loop detected"
+                            else:
+                                if skip_requested_now():
+                                    raise _SkipRequested
+                                item_passed, item_reason = item.status(item_output)
+                            results.append((item.label, item_output,
+                                            item_passed, item_reason))
+                        output = task["render_output"](results)
+                        passed, reason = task["aggregate"](results)
+                    else:
+                        output = chat(url, prompt, temperature,
+                                      max_tokens, timeout,
+                                      should_skip=skip_requested_now,
+                                      **chat_kwargs)
+                    if items is None and skip_requested_now():
                         raise _SkipRequested
-                    if task["id"] == weather.ID:
+                    if items is None and task["id"] == weather.ID:
                         tool_request = weather.parse_tool_request(output)
                         if tool_request is None:
                             passed = False
@@ -472,7 +503,7 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                                 )
                                 passed, reason = weather._weather_status(
                                     answer, observation["temperature_c"])
-                    else:
+                    elif items is None:
                         if check_for_run:
                             passed = bool(check_for_run(output, run))
                         else:

@@ -14,6 +14,7 @@ from tasks import (
     math,
     modern_economy_of_bulgaria,
     reasoningbg,
+    reasoningbg_full,
     spelling_grammar,
     weather,
 )
@@ -35,6 +36,7 @@ def test_all_registered_tasks_have_separate_prompt_check_and_explanation():
         contemporary_bulgarian_poets,
         modern_economy_of_bulgaria,
         reasoningbg,
+        reasoningbg_full,
     )
     assert [task["id"] for task in TASKS] == [module.ID for module in modules]
     for module, task in zip(modules, TASKS):
