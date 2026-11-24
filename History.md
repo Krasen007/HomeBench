@@ -105,3 +105,7 @@ Confirmed: update the five failing tests for the 15-task suite and the new reaso
 
 Mapped to tests/test_history_95_reasoningbg_full_task.py, tests/test_history_01_small_llama_benchmark.py, tests/test_history_09_extracted_task_modules.py, tests/test_history_34_readme_how_to_guide.py, tests/test_homebench.py.
 
+I ran reasoningbg_full. Its detail view shows a generic prompt listing all 232 filenames instead of the individual prompt for each file, and the aggregate failure message is confusing when it reports both text-level and question-level scores. Keep the task as one benchmark result, save and display each file-specific prompt for auditing, and clarify the aggregate failure summary.
+
+Mapped to tests/test_history_96_reasoningbg_full_prompt_audit.py.
+

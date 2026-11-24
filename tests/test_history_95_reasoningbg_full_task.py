@@ -64,7 +64,7 @@ def test_full_output_roundtrip_passes_only_when_every_file_is_correct():
     wrong[0] = (wrong[0][0], "", False, "FAIL: no model output received")
     failed_output = reasoningbg_full.render_output(tuple(wrong))
     assert reasoningbg_full.check(failed_output) is False
-    assert "231/232 texts correct" in reasoningbg_full.explain(failed_output)
+    assert "231/232 texts fully correct" in reasoningbg_full.explain(failed_output)
 
 
 def test_full_output_requires_all_232_sections():
@@ -129,7 +129,7 @@ def test_benchmark_continues_after_a_loop_in_one_file(tmp_path, monkeypatch):
     row = json.loads(out_path.read_text(encoding="utf-8").splitlines()[0])
     assert len(calls) == 232
     assert row["passed"] is False
-    assert "231/232 texts correct" in row["reason"]
+    assert "231/232 texts fully correct" in row["reason"]
     assert reasoningbg.SETS[0].name in row["reason"]
     assert "repetition loop detected" in row["reason"]
     assert f"=== {reasoningbg.SETS[-1].name} ===" in row["output"]

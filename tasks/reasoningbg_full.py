@@ -10,8 +10,8 @@ from . import reasoningbg
 ID: Final = "reasoningbg_full"
 _SECTION_LINE: Final = re.compile(r"^=== (.+) ===$")
 PROMPT: Final = (
-    "Answer every Bulgarian reading-comprehension text in tasks/ReasoningBG, "
-    "in filename order: " + ", ".join(item.name for item in reasoningbg.SETS)
+    "Answer every Bulgarian reading-comprehension text in tasks/ReasoningBG. "
+    "Each text is sent as a separate prompt and graded against its own answer key."
 )
 
 
@@ -55,8 +55,9 @@ def aggregate(results: Tuple[ItemResult, ...]) -> Tuple[bool, str]:
         preview += f" (+{len(failed) - 5} more)"
     first = failed[0]
     return False, (
-        f"FAIL: {correct}/{total} texts correct; failed: {preview}; "
-        f"first: {first[0]}: {first[3]}"
+        f"FAIL: {correct}/{total} texts fully correct; "
+        f"{len(failed)} failed: {preview}; "
+        f"first failure ({first[0]}): {first[3]}"
     )
 
 

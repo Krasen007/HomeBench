@@ -714,6 +714,21 @@
         const noteEl = el('div', 'Note: ' + r.note, 'note');
         d.append(noteEl);
       }
+      const itemPrompts = Array.isArray(r.item_prompts) ? r.item_prompts : [];
+      if (itemPrompts.length) {
+        const promptDetails = document.createElement('details');
+        promptDetails.className = 'detail-section';
+        promptDetails.append(el('summary', `Individual prompts (${itemPrompts.length} texts)`));
+        itemPrompts.forEach(item => {
+          if (!item || typeof item.label !== 'string' || typeof item.prompt !== 'string') return;
+          const itemDetails = document.createElement('details');
+          const promptText = document.createElement('pre');
+          promptText.textContent = item.prompt;
+          itemDetails.append(el('summary', item.label), promptText);
+          promptDetails.append(itemDetails);
+        });
+        d.append(promptDetails);
+      }
       // Reasoning is stored verbatim and shown as text, never parsed as markup,
       // so the audit view reproduces exactly what the model emitted.
       const reasoning = typeof r.reasoning === 'string' ? r.reasoning : '';

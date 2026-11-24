@@ -409,6 +409,10 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                 explain_for_run = task.get("explain_for_run")
                 items_for_run = task.get("items_for_run")
                 items = items_for_run(run) if items_for_run else None
+                item_prompts = (
+                    [{"label": item.label, "prompt": item.prompt} for item in items]
+                    if items is not None else None
+                )
                 if on_token:
                     on_token(task["id"], run, {"start": True})
                 try:
@@ -539,6 +543,8 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                     "note": note, "temperature": temperature,
                     "elapsed": elapsed,
                 }
+                if item_prompts is not None:
+                    row["item_prompts"] = item_prompts
                 out.write(json.dumps(row) + "\n")
                 out.flush()
                 if on_result:
