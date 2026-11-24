@@ -105,10 +105,7 @@ def answer_status(text: Optional[str], questions: Tuple[Question, ...]) -> Tuple
         if actual != wanted:
             wrong.append(f"Q{number}: expected {wanted}, got {actual}")
     if wrong:
-        preview = "; ".join(wrong[:5])
-        if len(wrong) > 5:
-            preview += f" (+{len(wrong) - 5} more)"
-        return False, f"FAIL: {correct}/{len(expected)} correct; {preview}"
+        return False, f"FAIL: {correct}/{len(expected)} correct; {'; '.join(wrong)}"
     return True, f"PASS: all {len(expected)} answers match"
 
 

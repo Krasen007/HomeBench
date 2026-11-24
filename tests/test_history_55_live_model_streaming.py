@@ -69,7 +69,7 @@ def test_run_benchmark_marks_stream_start_and_forwards_model_chunks(
     )
 
     assert captured == [
-        ("math", 0, {"start": True}),
+        ("math", 0, {"start": True, "prompt": ""}),
         ("math", 0, {"content": "partial", "reasoning": ""}),
     ]
 

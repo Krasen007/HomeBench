@@ -57,6 +57,10 @@
           <h3 id="liveStreamTitle">Live model output</h3>
           <button id="openLiveResult" type="button" hidden>Open in detail</button>
         </div>
+        <details id="livePromptDetails" hidden>
+          <summary><span id="livePromptSummary">Prompt</span></summary>
+          <pre id="livePrompt" class="live-stream-text"></pre>
+        </details>
         <details open>
           <summary><span id="liveAnswerSummary">Generated answer</span></summary>
           <pre id="liveOutput" class="live-stream-text">Waiting for model output...</pre>
@@ -299,6 +303,9 @@
     function latestBatchFor(model) {
       const batches = ROWS.filter(r => r.model === model)
         .map(r => Number(r.batch)).filter(Number.isFinite);
+      if (benchRunning && model === benchModel) {
+        batches.push(Date.now() / 1000);
+      }
       return batches.length ? Math.max(...batches) : null;
     }
     function formatDateTime(batch) {
@@ -709,7 +716,12 @@
       reasonEl.className = 'reason ' + (skipped ? 'skipped' : r.passed ? 'pass' : 'fail');
       reasonEl.textContent = r.reason || (skipped ? 'SKIPPED' : r.passed ? 'PASS' : 'FAIL');
       const elapsedText = Number.isFinite(Number(r.elapsed)) ? ` — ${formatSeconds(Number(r.elapsed))}` : '';
-      d.append(el('label', `Run ${index + 1}: ${skipped ? 'SKIPPED' : r.passed ? 'PASS' : 'FAIL'}${elapsedText}`), reasonEl);
+      const scoreSection = document.createElement('div');
+      scoreSection.className = 'detail-score';
+      scoreSection.append(
+        el('label', `Run ${index + 1}: ${skipped ? 'SKIPPED' : r.passed ? 'PASS' : 'FAIL'}${elapsedText}`),
+        reasonEl
+      );
       if (skipped && r.partial_grade && typeof r.partial_grade.reason === 'string') {
         const partial = r.partial_grade;
         const partialClass = partial.passed === true ? 'pass'
@@ -719,7 +731,29 @@
         const grade = document.createElement('div');
         grade.className = 'reason ' + partialClass;
         grade.textContent = `Partial grade (${gradeLabel}): ${partial.reason}`;
-        d.append(grade);
+        scoreSection.append(grade);
+        const itemGrades = Array.isArray(partial.items) ? partial.items : [];
+        if (itemGrades.length) {
+          const itemDetails = document.createElement('div');
+          itemDetails.className = 'detail-section';
+          itemDetails.append(
+            el('div', `Per-text grades (${itemGrades.length})`, 'section-title')
+          );
+          itemGrades.forEach(item => {
+            if (!item || typeof item.label !== 'string') return;
+            const result = item.passed === true ? 'PASS'
+              : item.passed === false ? 'FAIL' : 'INCOMPLETE';
+            const resultClass = item.passed === true ? 'pass'
+              : item.passed === false ? 'fail' : 'skipped';
+            const detail = el(
+              'div',
+              `${item.label}: ${result}${item.reason ? ` — ${item.reason}` : ''}`,
+              'reason ' + resultClass
+            );
+            itemDetails.append(detail);
+          });
+          scoreSection.append(itemDetails);
+        }
       }
       if (r.note) {
         const noteEl = el('div', 'Note: ' + r.note, 'note');
@@ -792,6 +826,7 @@
         d.append(btnRow, iframe);
       }
       d.append(outDiv);
+      d.append(scoreSection);
       const delBtn = el('button', 'Delete this run');
       delBtn.className = 'row';
       delBtn.style.marginLeft = '0';
@@ -975,6 +1010,10 @@
             : `Live model output — ${s.model}`;
         }
         if (s.running || s.stream_task) {
+          $('livePrompt').textContent = s.stream_prompt || '';
+          $('livePromptDetails').hidden = !s.stream_prompt;
+          $('livePromptSummary').textContent =
+            `Prompt (${formatChars(s.stream_prompt || '')})`;
           $('liveOutput').textContent = s.stream_output || 'Waiting for answer tokens...';
           $('liveReasoning').textContent = s.stream_reasoning || '';
           $('reasoningDetails').hidden = !s.stream_reasoning;

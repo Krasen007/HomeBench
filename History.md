@@ -117,3 +117,27 @@ Fix the review findings for skipped weather follow-ups and incomplete thinking b
 
 Mapped to tests/test_history_98_skip_weather_and_thinking.py.
 
+When a benchmark starts, show its new model row at the top of the results table rather than at the bottom.
+
+Mapped to tests/test_history_99_running_model_row_order.py.
+
+When a task is skipped, evaluate the generated answers as if completed and show whether the captured answers are correct, including per-text grades for multi-item tasks.
+
+Mapped to tests/test_history_100_skipped_item_grades.py.
+
+Show the active task prompt in the Live model output panel, updating it for each file-specific prompt and weather follow-up.
+
+Mapped to tests/test_history_101_live_model_prompt.py.
+
+Move each run's score and failure details below the Generated answer section and its Copy answer action.
+
+Mapped to tests/test_history_102_score_below_generated_answer.py.
+
+Per-text grades should always be visible, and failure details should show all incorrect questions and failed text names instead of truncating the list.
+
+Mapped to tests/test_history_103_show_all_grades.py.
+
+Summarize today's benchmark changes and commit the pending worktree changes. Today's work includes Bulgarian CSV and ReasoningBG benchmark coverage, more useful scoring and skip diagnostics, and UI improvements for prompt/reasoning/answer audits, live prompts, row ordering, and complete failure details.
+
+Mapped to tests/test_history_104_daily_summary_and_commit.py.
+

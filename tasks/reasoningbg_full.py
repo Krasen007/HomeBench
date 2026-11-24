@@ -50,13 +50,11 @@ def aggregate(results: Tuple[ItemResult, ...]) -> Tuple[bool, str]:
         return True, f"PASS: {correct}/{total} texts correct"
 
     failed = [result for result in results if not result[2]]
-    preview = ", ".join(result[0] for result in failed[:5])
-    if len(failed) > 5:
-        preview += f" (+{len(failed) - 5} more)"
+    failed_names = ", ".join(result[0] for result in failed)
     first = failed[0]
     return False, (
         f"FAIL: {correct}/{total} texts fully correct; "
-        f"{len(failed)} failed: {preview}; "
+        f"{len(failed)} failed: {failed_names}; "
         f"first failure ({first[0]}): {first[3]}"
     )
 

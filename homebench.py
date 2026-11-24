@@ -446,7 +446,7 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                     if items is not None else None
                 )
                 if on_token:
-                    on_token(task["id"], run, {"start": True})
+                    on_token(task["id"], run, {"start": True, "prompt": prompt})
                 try:
                     status = "run"
                     chat_kwargs = {"on_token": capture_token}
@@ -462,6 +462,7 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                                 on_token(task["id"], run, {
                                     "start": True,
                                     "phase": f"file {index}/{len(items)}: {item.label}",
+                                    "prompt": item.prompt,
                                 })
                             captured_content["parts"] = []
                             try:
@@ -533,10 +534,14 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                                 captured_content["parts"] = []
                                 if skip_requested_now():
                                     raise _SkipRequested
+                                weather_follow_up_prompt = weather.follow_up_prompt(
+                                    observation
+                                )
                                 if on_token:
                                     on_token(task["id"], run, {
                                         "start": True,
                                         "phase": "final answer after web_fetch",
+                                        "prompt": weather_follow_up_prompt,
                                     })
                                     on_token(task["id"], run, {
                                         "content": "Executed web_fetch. "
@@ -548,7 +553,7 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                                 if abort_callback_provided:
                                     answer_kwargs["should_abort"] = should_abort
                                 weather_follow_up_answer = chat(
-                                    url, weather.follow_up_prompt(observation),
+                                    url, weather_follow_up_prompt,
                                     temperature, max_tokens, timeout,
                                     should_skip=skip_requested_now,
                                     **answer_kwargs)
@@ -599,6 +604,14 @@ def run_benchmark(url, name, runs, temperature, max_tokens, timeout,
                             partial_grade = {
                                 "passed": None,
                                 "reason": partial_reason,
+                                "items": [
+                                    {
+                                        "label": item_result[0],
+                                        "passed": item_result[2],
+                                        "reason": item_result[3],
+                                    }
+                                    for item_result in item_results
+                                ],
                             }
                     elif weather_context is not None:
                         if weather_follow_up_answer is None:
@@ -891,7 +904,8 @@ WEB_OUT = "results.jsonl"
 lock = threading.Lock()
 state = {"running": False, "model": "", "done": 0, "total": 0, "log": [],
          "error": None, "plan": 0, "plans": 0, "stream_task": "",
-         "stream_run": 0, "stream_phase": "", "stream_output": "",
+         "stream_run": 0, "stream_phase": "", "stream_prompt": "",
+         "stream_output": "",
          "stream_reasoning": "", "skip": False, "tasks": [], "temperature": None,
          "abort": False}
 
@@ -1033,7 +1047,8 @@ class Handler(BaseHTTPRequestHandler):
                               "total": total_runs, "log": [], "error": None,
                               "plan": 1, "plans": len(plans),
                               "stream_task": "", "stream_run": 0,
-                              "stream_phase": "", "stream_output": "",
+                              "stream_phase": "", "stream_prompt": "",
+                              "stream_output": "",
                               "stream_reasoning": "",
                               "tasks": list(task_ids),
                               "temperature": None, "abort": False})
@@ -1076,6 +1091,7 @@ class Handler(BaseHTTPRequestHandler):
                         state["stream_task"] = task_id
                         state["stream_run"] = run + 1
                         state["stream_phase"] = chunk.get("phase", "starting")
+                        state["stream_prompt"] = chunk.get("prompt", "")
                         state["stream_output"] = ""
                         state["stream_reasoning"] = ""
                         return
